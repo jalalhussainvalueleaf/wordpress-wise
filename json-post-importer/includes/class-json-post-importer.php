@@ -71,6 +71,9 @@ class JSON_Post_Importer {
         // Load the JSON Post Creator first as other classes depend on it
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-creator.php';
         
+        // Load the WordPress Formatter class
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-wordpress-formatter.php';
+        
         // The class responsible for orchestrating the actions and filters of the core plugin.
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-loader.php';
         

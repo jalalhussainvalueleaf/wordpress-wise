@@ -35,11 +35,19 @@ class JSON_Post_Importer_Admin {
      */
     private $logger;
 
+    /**
+     * The WordPress formatter instance
+     *
+     * @var JSON_Post_Importer_WordPress_Formatter
+     */
+    private $wordpress_formatter;
+
     public function __construct($plugin_name, $version) {
         $this->plugin_name = $plugin_name;
         $this->version = $version;
         $this->post_creator = new JSON_Post_Creator();
         $this->logger = new JSON_Post_Importer_Logger();
+        $this->wordpress_formatter = new JSON_Post_Importer_WordPress_Formatter();
         
         // Register AJAX handlers
         add_action('wp_ajax_jpi_handle_upload', array($this, 'handle_ajax_upload'));
@@ -56,6 +64,10 @@ class JSON_Post_Importer_Admin {
         add_action('wp_ajax_jpi_get_import_logs', array($this, 'get_import_logs_ajax'));
         add_action('wp_ajax_jpi_clear_import_logs', array($this, 'clear_import_logs_ajax'));
         add_action('wp_ajax_jpi_get_import_history', array($this, 'get_import_history'));
+        
+        // WordPress formatter AJAX handlers
+        add_action('wp_ajax_jpi_format_to_wordpress', array($this, 'format_to_wordpress_ajax'));
+        add_action('wp_ajax_jpi_get_wordpress_suggestions', array($this, 'get_wordpress_suggestions_ajax'));
         
         // Logger AJAX handlers
         add_action('wp_ajax_jpi_get_logs', array($this, 'get_logs_ajax'));
@@ -1164,5 +1176,77 @@ class JSON_Post_Importer_Admin {
         exit;
     }
 
+    /**
+     * AJAX handler to format JSON to WordPress standards
+     */
+    public function format_to_wordpress_ajax() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'jpi_nonce')) {
+            wp_send_json_error('Invalid nonce');
+            return;
+        }
+
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+            return;
+        }
+
+        try {
+            $json_data = json_decode(stripslashes($_POST['json_data']), true);
+            $options = isset($_POST['options']) ? $_POST['options'] : [];
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                wp_send_json_error('Invalid JSON data');
+                return;
+            }
+
+            $formatted_data = $this->wordpress_formatter->format_to_wordpress_standard($json_data, $options);
+            
+            wp_send_json_success([
+                'formatted_data' => $formatted_data,
+                'message' => 'Data formatted to WordPress standards successfully'
+            ]);
+
+        } catch (Exception $e) {
+            wp_send_json_error('Error formatting data: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * AJAX handler to get WordPress mapping suggestions
+     */
+    public function get_wordpress_suggestions_ajax() {
+        // Verify nonce
+        if (!wp_verify_nonce($_POST['nonce'], 'jpi_nonce')) {
+            wp_send_json_error('Invalid nonce');
+            return;
+        }
+
+        // Check permissions
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+            return;
+        }
+
+        try {
+            $json_data = json_decode(stripslashes($_POST['json_data']), true);
+
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                wp_send_json_error('Invalid JSON data');
+                return;
+            }
+
+            $suggestions = $this->wordpress_formatter->get_mapping_suggestions($json_data);
+            
+            wp_send_json_success([
+                'suggestions' => $suggestions,
+                'message' => 'WordPress mapping suggestions generated successfully'
+            ]);
+
+        } catch (Exception $e) {
+            wp_send_json_error('Error generating suggestions: ' . $e->getMessage());
+        }
+    }
 
 }

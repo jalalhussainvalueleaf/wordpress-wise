@@ -2005,4 +2005,270 @@ nced Field Mapping Styles */
 .jpi-cache-miss {
     background-color: rgba(219, 166, 23, 0.1) !important;
     border-left: 2px solid #dba617 !important;
+}/* Word
+Press Standard Formatting Styles */
+
+/* WordPress formatting button */
+.jpi-format-wordpress {
+    background: #0073aa !important;
+    border-color: #005a87 !important;
+    color: #fff !important;
+    text-shadow: 0 -1px 1px #005a87, 1px 0 1px #005a87, 0 1px 1px #005a87, -1px 0 1px #005a87 !important;
+    box-shadow: 0 1px 0 #005a87 !important;
+}
+
+.jpi-format-wordpress:hover {
+    background: #005a87 !important;
+    border-color: #004a73 !important;
+}
+
+.jpi-format-wordpress:active {
+    background: #004a73 !important;
+    border-color: #003a5c !important;
+    box-shadow: inset 0 2px 0 #003a5c !important;
+}
+
+.jpi-format-wordpress .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    vertical-align: text-top;
+    margin-right: 5px;
+}
+
+.jpi-format-wordpress:disabled {
+    background: #a0a5aa !important;
+    border-color: #929799 !important;
+    color: #fff !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+    cursor: not-allowed !important;
+}
+
+/* WordPress formatting notification */
+.jpi-wordpress-notification {
+    margin: 15px 0;
+    border-left-color: #0073aa !important;
+}
+
+.jpi-wordpress-notification p {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.jpi-wordpress-notification .dashicons {
+    color: #0073aa;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+}
+
+/* WordPress standard field indicators */
+.jpi-wordpress-detected {
+    background-color: #e7f3ff !important;
+    border-left: 3px solid #0073aa !important;
+    position: relative;
+}
+
+.jpi-wordpress-detected::after {
+    content: "WP";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: #0073aa;
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 2px;
+    line-height: 1;
+}
+
+/* SEO field indicators */
+.jpi-seo-field {
+    background-color: #fff3e0 !important;
+    border-left: 3px solid #ff9800 !important;
+    position: relative;
+}
+
+.jpi-seo-field::after {
+    content: "SEO";
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: #ff9800;
+    color: white;
+    font-size: 10px;
+    font-weight: bold;
+    padding: 2px 4px;
+    border-radius: 2px;
+    line-height: 1;
+}
+
+/* WordPress formatting progress */
+.jpi-wordpress-formatting {
+    position: relative;
+    overflow: hidden;
+}
+
+.jpi-wordpress-formatting::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(0, 115, 170, 0.3), transparent);
+    animation: wordpress-formatting-progress 2s infinite;
+}
+
+@keyframes wordpress-formatting-progress {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* WordPress preset section enhancements */
+.jpi-preset-section {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 20px;
+    margin: 15px 0;
+    position: relative;
+}
+
+.jpi-preset-section::before {
+    content: "";
+    position: absolute;
+    top: -1px;
+    left: -1px;
+    right: -1px;
+    height: 4px;
+    background: linear-gradient(90deg, #0073aa, #005a87, #0073aa);
+    border-radius: 8px 8px 0 0;
+}
+
+.jpi-preset-section label {
+    font-weight: 600;
+    color: #23282d;
+    margin-right: 10px;
+}
+
+/* WordPress standard mapping table enhancements */
+.jpi-mapping-section h4 {
+    position: relative;
+    padding-left: 30px;
+}
+
+.jpi-mapping-section h4::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    height: 20px;
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path fill="%230073aa" d="M10 0C4.5 0 0 4.5 0 10s4.5 10 10 10 10-4.5 10-10S15.5 0 10 0zM8.5 15.5L3 10l1.4-1.4L8.5 12.7l7.1-7.1L17 7l-8.5 8.5z"/></svg>') no-repeat center;
+    background-size: contain;
+}
+
+/* WordPress field type badges */
+.jpi-wp-field-badge {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-left: 8px;
+    vertical-align: middle;
+}
+
+.jpi-wp-field-badge.standard {
+    background: #0073aa;
+    color: #fff;
+}
+
+.jpi-wp-field-badge.seo {
+    background: #ff9800;
+    color: #fff;
+}
+
+.jpi-wp-field-badge.meta {
+    background: #9c27b0;
+    color: #fff;
+}
+
+.jpi-wp-field-badge.taxonomy {
+    background: #4caf50;
+    color: #fff;
+}
+
+/* WordPress formatting success animation */
+.jpi-wordpress-success {
+    animation: wordpress-success-pulse 0.6s ease-in-out;
+}
+
+@keyframes wordpress-success-pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); background-color: #e7f3ff; }
+    100% { transform: scale(1); }
+}
+
+/* Responsive adjustments for WordPress features */
+@media (max-width: 782px) {
+    .jpi-preset-section {
+        padding: 15px;
+    }
+    
+    .jpi-format-wordpress {
+        width: 100%;
+        margin: 10px 0 !important;
+        text-align: center;
+    }
+    
+    .jpi-preset-section label {
+        display: block;
+        margin-bottom: 8px;
+    }
+    
+    .jpi-preset-section select {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+}
+
+/* Dark mode support for WordPress features */
+@media (prefers-color-scheme: dark) {
+    .jpi-wordpress-detected {
+        background-color: rgba(0, 115, 170, 0.2) !important;
+    }
+    
+    .jpi-seo-field {
+        background-color: rgba(255, 152, 0, 0.2) !important;
+    }
+    
+    .jpi-preset-section {
+        background: linear-gradient(135deg, #2c3338 0%, #3c434a 100%);
+        border-color: #50575e;
+    }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+    .jpi-format-wordpress {
+        border-width: 2px !important;
+    }
+    
+    .jpi-wordpress-detected,
+    .jpi-seo-field {
+        border-left-width: 5px !important;
+    }
+    
+    .jpi-wp-field-badge {
+        border: 2px solid currentColor;
+    }
 }

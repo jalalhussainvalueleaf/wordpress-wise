@@ -175,6 +175,15 @@
             validateFieldMapping();
         }, 500));
 
+        // Handle WordPress formatting
+        $(document).on('click', '.jpi-format-wordpress', function () {
+            if (window.currentJsonData) {
+                formatToWordPressStandard();
+            } else {
+                alert(jpi_vars.i18n.no_data_loaded || 'No JSON data loaded. Please upload a file first.');
+            }
+        });
+
         // Handle clear all mappings
         $(document).on('click', '.jpi-clear-mappings', function () {
             if (confirm(jpi_vars.i18n.confirm_clear || 'Are you sure you want to clear all field mappings?')) {
@@ -213,6 +222,9 @@
                                 <option value="">-- ${jpi_vars.i18n.select_preset || 'Select a preset'} --</option>
                                 ${renderPresetOptions()}
                             </select>
+                            <button type="button" class="button button-primary jpi-format-wordpress" style="margin-left: 10px;">
+                                <span class="dashicons dashicons-wordpress-alt"></span> ${jpi_vars.i18n.format_wordpress || 'Format to WordPress Standard'}
+                            </button>
                             <button type="button" class="button jpi-clear-mappings">${jpi_vars.i18n.clear_all || 'Clear All'}</button>
                         </div>
                     </div>
@@ -1355,6 +1367,162 @@
         $('#jpi-import-status').html(statusHtml);
     }
 
+    /**
+     * Format JSON data to WordPress standards
+     */
+    function formatToWordPressStandard() {
+        if (!window.currentJsonData) {
+            console.error('No JSON data available for formatting');
+            return;
+        }
+
+        // Show loading state
+        const $button = $('.jpi-format-wordpress');
+        const originalText = $button.html();
+        $button.prop('disabled', true).html('<span class="spinner is-active"></span> ' + (jpi_vars.i18n.formatting || 'Formatting...'));
+
+        // Get formatting options
+        const options = {
+            auto_detect_fields: true,
+            generate_seo_meta: true,
+            create_excerpts: true,
+            generate_slugs: true,
+            format_content: true,
+            detect_featured_images: true,
+            process_taxonomies: true,
+            add_schema_markup: true
+        };
+
+        $.ajax({
+            url: jpi_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'jpi_get_wordpress_suggestions',
+                nonce: jpi_vars.nonce,
+                json_data: JSON.stringify(window.currentJsonData),
+                options: options
+            },
+            success: function(response) {
+                if (response.success) {
+                    applyWordPressSuggestions(response.data.suggestions);
+                    showWordPressFormatNotification('success', response.data.message || 'WordPress formatting applied successfully!');
+                } else {
+                    showWordPressFormatNotification('error', response.data || 'Failed to format data to WordPress standards.');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('WordPress formatting error:', error);
+                showWordPressFormatNotification('error', 'Network error occurred while formatting data.');
+            },
+            complete: function() {
+                $button.prop('disabled', false).html(originalText);
+            }
+        });
+    }
+
+    /**
+     * Apply WordPress mapping suggestions
+     */
+    function applyWordPressSuggestions(suggestions) {
+        console.log('Applying WordPress suggestions:', suggestions);
+
+        // Clear existing mappings first
+        clearAllMappings();
+
+        // Apply standard field suggestions
+        if (suggestions.standard) {
+            for (const [wpField, jsonField] of Object.entries(suggestions.standard)) {
+                const $select = $(`select[name="jpi_field_mapping[${wpField}]"]`);
+                if ($select.length && jsonField) {
+                    $select.val(jsonField).trigger('change');
+                    console.log(`Mapped ${wpField} to ${jsonField}`);
+                }
+            }
+        }
+
+        // Apply SEO field suggestions as custom fields
+        if (suggestions.seo) {
+            for (const [seoField, jsonField] of Object.entries(suggestions.seo)) {
+                if (jsonField) {
+                    addCustomFieldMapping(seoField, jsonField);
+                    console.log(`Added SEO mapping: ${seoField} to ${jsonField}`);
+                }
+            }
+        }
+
+        // Apply taxonomy suggestions
+        if (suggestions.taxonomies) {
+            for (const [taxonomy, jsonField] of Object.entries(suggestions.taxonomies)) {
+                if (jsonField) {
+                    addTaxonomyMapping(taxonomy, jsonField);
+                    console.log(`Added taxonomy mapping: ${taxonomy} to ${jsonField}`);
+                }
+            }
+        }
+
+        // Validate after applying suggestions
+        validateFieldMapping();
+    }
+
+    /**
+     * Add custom field mapping
+     */
+    function addCustomFieldMapping(metaKey, jsonField) {
+        // Click add custom field button
+        $('.jpi-add-custom-field').trigger('click');
+        
+        // Set the values in the last added row
+        const $lastRow = $('#jpi-custom-fields tbody tr:last');
+        $lastRow.find('.jpi-meta-key').val(metaKey);
+        $lastRow.find('.jpi-field-select').val(jsonField).trigger('change');
+    }
+
+    /**
+     * Add taxonomy mapping
+     */
+    function addTaxonomyMapping(taxonomy, jsonField) {
+        // Click add taxonomy button
+        $('.jpi-add-taxonomy').trigger('click');
+        
+        // Set the values in the last added row
+        const $lastRow = $('#jpi-taxonomies tbody tr:last');
+        $lastRow.find('.jpi-taxonomy-select').val(taxonomy);
+        $lastRow.find('.jpi-field-select').val(jsonField).trigger('change');
+    }
+
+    /**
+     * Show WordPress formatting notification
+     */
+    function showWordPressFormatNotification(type, message) {
+        const $notification = $(`
+            <div class="notice notice-${type} is-dismissible jpi-wordpress-notification">
+                <p><strong><span class="dashicons dashicons-wordpress-alt"></span> WordPress Formatting:</strong> ${message}</p>
+                <button type="button" class="notice-dismiss">
+                    <span class="screen-reader-text">Dismiss this notice.</span>
+                </button>
+            </div>
+        `);
+
+        // Add the notification to the field mapping container
+        $('#jpi-field-mapping-container').prepend($notification);
+
+        // Auto-dismiss after 5 seconds for success messages
+        if (type === 'success') {
+            setTimeout(function() {
+                $notification.fadeOut(function() {
+                    $(this).remove();
+                });
+            }, 5000);
+        }
+
+        // Handle manual dismiss
+        $notification.on('click', '.notice-dismiss', function() {
+            $notification.fadeOut(function() {
+                $(this).remove();
+            });
+        });
+    }
+
     // Export functions for global access if needed
     window.jpiFieldMapping = {
         renderFieldMappingUI,
@@ -1365,7 +1533,8 @@
         clearAllMappings,
         clearCaches,
         getPerformanceMetrics,
-        initializeFieldSelectOptimized
+        initializeFieldSelectOptimized,
+        formatToWordPressStandard
     };
 
 })(jQuery);
