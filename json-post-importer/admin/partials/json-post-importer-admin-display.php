@@ -17,22 +17,6 @@ $max_upload_size_mb = size_format($max_upload_size, 2);
 // Get any existing field mappings
 $field_mappings = get_option('jpi_field_mappings', array());
 
-// Check for messages
-$message = isset($_GET['jpi_message']) ? sanitize_text_field($_GET['jpi_message']) : '';
-$message_class = '';
-$message_text = '';
-
-switch ($message) {
-    case 'import_success':
-        $message_class = 'notice-success';
-        $message_text = __('Posts imported successfully!', 'json-post-importer');
-        break;
-    case 'import_error':
-        $message_class = 'notice-error';
-        $message_text = isset($_GET['error']) ? urldecode($_GET['error']) : __('An error occurred during import.', 'json-post-importer');
-        break;
-}
-
 // Display admin notices
 function display_admin_notice() {
     if (isset($_GET['jpi_message'])) {
@@ -70,181 +54,402 @@ function display_admin_notice() {
 }
 ?>
 
-<div class="wrap">
-    <!-- <h1><?php echo esc_html__('JSON Post Importer', 'json-post-importer'); ?></h1> -->
+<div class="wrap" id="json-post-importer">
+    <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+    
+    <!-- Add nonce field for AJAX requests -->
+    <input type="hidden" id="jpi-preview-nonce" value="<?php echo wp_create_nonce('jpi_preview_nonce'); ?>" />
     
     <?php display_admin_notice(); ?>
     
-    <div class="wrap" id="json-post-importer">
-    <h1><?php echo esc_html(get_admin_page_title()); ?></h1>
+    <!-- Navigation Tabs -->
+    <nav class="nav-tab-wrapper">
+        <a href="#import" class="nav-tab nav-tab-active" id="import-tab"><?php esc_html_e('Import', 'json-post-importer'); ?></a>
+        <a href="#logs" class="nav-tab" id="logs-tab"><?php esc_html_e('Logs & Debug', 'json-post-importer'); ?></a>
+    </nav>
     
-    <?php if ($message_text) : ?>
-        <div class="notice <?php echo esc_attr($message_class); ?> is-dismissible">
-            <p><?php echo esc_html($message_text); ?></p>
-            <button type="button" class="notice-dismiss">
-                <span class="screen-reader-text"><?php esc_html_e('Dismiss this notice.', 'json-post-importer'); ?></span>
-            </button>
-        </div>
-    <?php endif; ?>
-    
-    <div class="jpi-card">
-        <h2><?php esc_html_e('Upload JSON File', 'json-post-importer'); ?></h2>
-        <p><?php esc_html_e('Upload a JSON file containing your posts data or drag and drop it below.', 'json-post-importer'); ?></p>
-        
-        <form id="jpi-upload-form" method="post" enctype="multipart/form-data">
-            <?php wp_nonce_field('jpi_upload_nonce', 'jpi_nonce'); ?>
-            
-            <div id="jpi-drop-zone" class="jpi-drop-zone">
-                <div class="jpi-drop-zone-content">
-                    <span class="dashicons dashicons-upload"></span>
-                    <p class="jpi-upload-instructions">
-                        <?php esc_html_e('Drag & drop your JSON file here or', 'json-post-importer'); ?>
-                        <button type="button" class="button button-secondary" id="jpi-browse-files">
-                            <?php esc_html_e('Browse Files', 'json-post-importer'); ?>
+    <!-- Tab Content -->
+    <div class="tab-content">
+        <!-- Import Tab -->
+        <div id="import-content" class="tab-pane active">
+            <!-- Main Upload Section -->
+            <div class="jpi-main-content">
+        <!-- File Upload Section -->
+        <div class="jpi-upload-section">
+            <div class="jpi-card">
+                <h3><?php esc_html_e('Upload JSON File', 'json-post-importer'); ?></h3>
+                <p><?php esc_html_e('Upload a JSON file containing your posts data or drag and drop it below.', 'json-post-importer'); ?></p>
+                
+                <form id="jpi-upload-form" method="post" enctype="multipart/form-data">
+                    <?php wp_nonce_field('jpi_upload_nonce', 'jpi_upload_nonce'); ?>
+                    <input type="hidden" name="import_type" value="file">
+                    
+                    <div id="jpi-drop-zone" class="jpi-drop-zone">
+                        <div class="jpi-drop-zone-content">
+                            <span class="spinner" id="jpi-upload-spinner" style="float: none; margin-top: 0; display: none;"></span>
+                            <input type="file" id="jpi-json-file" name="jpi_json_file" accept=".json,application/json" style="display: none;">
+                            <p class="jpi-drop-instructions">
+                                <?php esc_html_e('Drag & drop your JSON file here or', 'json-post-importer'); ?> 
+                                <a href="#" class="jpi-browse-files"><?php esc_html_e('browse files', 'json-post-importer'); ?></a>
+                            </p>
+                            <p id="jpi-file-info" class="jpi-file-info" style="display: none;"></p>
+                        </div>
+                    </div>
+                    
+                    <p class="submit">
+                        <button type="button" id="jpi-preview-btn" class="button button-primary" disabled>
+                            <?php esc_html_e('Preview & Map Fields', 'json-post-importer'); ?>
                         </button>
-                    </p>
-                    <input type="file" 
-                           id="json-file" 
-                           name="json-file"
-                           class="jpi-file-input" 
-                           accept=".json,application/json" 
-                           required
-                           aria-required="true">
-                    <p class="jpi-file-info" id="jpi-file-info">
-                        <?php 
-                        printf(
-                            /* translators: %s: Maximum upload size */
-                            esc_html__('Maximum file size: %s', 'json-post-importer'),
-                            esc_html(size_format(wp_max_upload_size()))
-                        );
-                        ?>
                     </p>
                     
-                    <div class="jpi-actions" style="margin-top: 15px;">
-                        <button type="button" id="jpi-preview-btn" class="button button-secondary" disabled>
-                            <?php esc_html_e('Preview', 'json-post-importer'); ?>
-                        </button>
-                        <button type="submit" id="jpi-submit" class="button button-primary" disabled>
-                            <?php esc_html_e('Import', 'json-post-importer'); ?>
-                        </button>
-                        <span class="spinner" id="jpi-upload-spinner" style="float: none; margin-top: 0;"></span>
+                    <p class="description">
+                        <?php 
+                            printf(
+                                /* translators: %s: Maximum upload file size */
+                                esc_html__('Maximum upload file size: %s', 'json-post-importer'),
+                                esc_html($max_upload_size_mb)
+                            );
+                        ?>
+                    </p>
+                </form>
+            </div>
+        </div>
+            </div>
+        </div>
+        
+        <!-- Logs Tab -->
+        <div id="logs-content" class="tab-pane" style="display: none;">
+            <div class="jpi-logs-section">
+                <div class="jpi-card">
+                    <div class="jpi-logs-header">
+                        <h3><?php esc_html_e('Plugin Logs & Debug', 'json-post-importer'); ?></h3>
+                        <div class="jpi-logs-controls">
+                            <label class="jpi-debug-toggle">
+                                <input type="checkbox" id="jpi-debug-mode" />
+                                <?php esc_html_e('Debug Mode', 'json-post-importer'); ?>
+                            </label>
+                            <button type="button" id="jpi-refresh-logs" class="button">
+                                <?php esc_html_e('Refresh', 'json-post-importer'); ?>
+                            </button>
+                            <button type="button" id="jpi-clear-logs" class="button">
+                                <?php esc_html_e('Clear Logs', 'json-post-importer'); ?>
+                            </button>
+                        </div>
                     </div>
-                </div>
-                
-                <div id="jpi-preview-section" class="jpi-preview-section" style="display: none;">
-                    <h3><?php esc_html_e('Preview', 'json-post-importer'); ?></h3>
-                    <div id="jpi-preview-loading" class="jpi-loading" style="display: none;">
-                        <div class="jpi-progress-container">
-                            <div class="jpi-progress-bar">
-                                <div class="jpi-progress-bar-fill" style="width: 0%"></div>
-                            </div>
-                            <div class="jpi-progress-text"><?php esc_html_e('Processing file...', 'json-post-importer'); ?></div>
-                            <div class="jpi-progress-details">
-                                <span class="jpi-progress-percentage">0%</span>
-                                <span class="jpi-progress-status"><?php esc_html_e('Reading file...', 'json-post-importer'); ?></span>
+                    
+                    <div class="jpi-logs-stats">
+                        <div class="jpi-stat-item">
+                            <span class="jpi-stat-label"><?php esc_html_e('Total Files:', 'json-post-importer'); ?></span>
+                            <span id="jpi-stat-files" class="jpi-stat-value">-</span>
+                        </div>
+                        <div class="jpi-stat-item">
+                            <span class="jpi-stat-label"><?php esc_html_e('Total Size:', 'json-post-importer'); ?></span>
+                            <span id="jpi-stat-size" class="jpi-stat-value">-</span>
+                        </div>
+                        <div class="jpi-stat-item">
+                            <span class="jpi-stat-label"><?php esc_html_e('Debug Mode:', 'json-post-importer'); ?></span>
+                            <span id="jpi-debug-mode-status" class="jpi-stat-value">-</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Log Statistics -->
+                    <div class="jpi-log-stats">
+                        <div class="jpi-stat-card files">
+                            <h4><?php esc_html_e('Log Files', 'json-post-importer'); ?></h4>
+                            <p class="jpi-stat-value" id="jpi-log-files-count">0</p>
+                        </div>
+                        <div class="jpi-stat-card size">
+                            <h4><?php esc_html_e('Total Size', 'json-post-importer'); ?></h4>
+                            <p class="jpi-stat-value" id="jpi-log-total-size">0 B</p>
+                        </div>
+                        <div class="jpi-stat-card debug">
+                            <h4><?php esc_html_e('Debug Mode', 'json-post-importer'); ?></h4>
+                            <p class="jpi-stat-value" id="jpi-debug-mode-status">Disabled</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Log Files List -->
+                    <div class="jpi-log-files">
+                        <h4><?php esc_html_e('Available Log Files', 'json-post-importer'); ?></h4>
+                        <div id="jpi-log-files-list">
+                            <div class="jpi-logs-loading">
+                                <?php esc_html_e('Loading log files...', 'json-post-importer'); ?>
                             </div>
                         </div>
                     </div>
-                    <div id="jpi-preview-error" class="jpi-error" style="display: none;"></div>
-                    <div id="jpi-preview-content"></div>
                     
-                    <!-- Import Options -->
-                    <div id="jpi-import-options" class="jpi-import-options" style="display: none; margin: 20px 0; padding: 15px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;">
-                        <h3><?php esc_html_e('Import Options', 'json-post-importer'); ?></h3>
+                    <!-- Log Viewer -->
+                    <div class="jpi-log-viewer" style="display: none;">
+                        <div class="jpi-log-viewer-header">
+                            <h4 class="jpi-log-viewer-title"><?php esc_html_e('Log Viewer', 'json-post-importer'); ?></h4>
+                            <div class="jpi-log-viewer-controls">
+                                <label for="jpi-log-lines"><?php esc_html_e('Show:', 'json-post-importer'); ?></label>
+                                <select id="jpi-log-lines">
+                                    <option value="50">50 lines</option>
+                                    <option value="100" selected>100 lines</option>
+                                    <option value="500">500 lines</option>
+                                    <option value="0"><?php esc_html_e('All', 'json-post-importer'); ?></option>
+                                </select>
+                                <label>
+                                    <input type="checkbox" id="jpi-auto-scroll" checked>
+                                    <?php esc_html_e('Auto-scroll', 'json-post-importer'); ?>
+                                </label>
+                                <span class="jpi-log-count"></span>
+                            </div>
+                        </div>
                         
-                        <table class="form-table">
-                            <tr>
-                                <th scope="row"><?php esc_html_e('Post Type', 'json-post-importer'); ?></th>
-                                <td>
-                                    <select id="jpi-post-type" name="jpi_post_type" class="regular-text">
-                                        <?php
-                                        $post_types = get_post_types(array('public' => true), 'objects');
-                                        foreach ($post_types as $post_type) {
-                                            echo sprintf(
-                                                '<option value="%s"%s>%s</option>',
-                                                esc_attr($post_type->name),
-                                                selected('post', $post_type->name, false),
-                                                esc_html($post_type->labels->singular_name)
-                                            );
-                                        }
-                                        ?>
-                                    </select>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th scope="row"><?php esc_html_e('Post Status', 'json-post-importer'); ?></th>
-                                <td>
-                                    <select id="jpi-post-status" name="jpi_post_status" class="regular-text">
-                                        <?php
-                                        $statuses = get_post_statuses();
-                                        foreach ($statuses as $status => $label) {
-                                            echo sprintf(
-                                                '<option value="%s"%s>%s</option>',
-                                                esc_attr($status),
-                                                selected('publish', $status, false),
-                                                esc_html($label)
-                                            );
-                                        }
-                                        ?>
-                                    </select>
-                                </td>
-                            </tr>
-                            <tr>
-                                <th scope="row"><?php esc_html_e('Options', 'json-post-importer'); ?></th>
-                                <td>
-                                    <label>
-                                        <input type="checkbox" id="jpi-update-existing" name="jpi_update_existing" value="1">
-                                        <?php esc_html_e('Update existing posts', 'json-post-importer'); ?>
-                                    </label>
-                                    <p class="description"><?php esc_html_e('Check this to update posts that already exist (matched by title or custom field).', 'json-post-importer'); ?></p>
-                                    
-                                    <label style="display: block; margin-top: 10px;">
-                                        <input type="checkbox" id="jpi-import-images" name="jpi_import_images" value="1" checked>
-                                        <?php esc_html_e('Import featured images', 'json-post-importer'); ?>
-                                    </label>
-                                    
-                                    <label style="display: block; margin-top: 10px;">
-                                        <input type="checkbox" id="jpi-create-terms" name="jpi_create_terms" value="1" checked>
-                                        <?php esc_html_e('Create new categories/tags', 'json-post-importer'); ?>
-                                    </label>
-                                </td>
-                            </tr>
-                        </table>
+                        <!-- Log Filters -->
+                        <div class="jpi-log-filters">
+                            <div class="jpi-log-filter-group">
+                                <label for="jpi-log-level-filter"><?php esc_html_e('Level:', 'json-post-importer'); ?></label>
+                                <select id="jpi-log-level-filter">
+                                    <option value="all"><?php esc_html_e('All Levels', 'json-post-importer'); ?></option>
+                                    <option value="error"><?php esc_html_e('Error', 'json-post-importer'); ?></option>
+                                    <option value="warning"><?php esc_html_e('Warning', 'json-post-importer'); ?></option>
+                                    <option value="info"><?php esc_html_e('Info', 'json-post-importer'); ?></option>
+                                    <option value="debug"><?php esc_html_e('Debug', 'json-post-importer'); ?></option>
+                                </select>
+                            </div>
+                            
+                            <div class="jpi-log-search">
+                                <input type="text" id="jpi-log-search" placeholder="<?php esc_attr_e('Search logs...', 'json-post-importer'); ?>">
+                                <span class="jpi-log-search-icon dashicons dashicons-search"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="jpi-log-content">
+                            <div class="jpi-logs-empty">
+                                <?php esc_html_e('Select a log file to view its contents.', 'json-post-importer'); ?>
+                            </div>
+                        </div>
                     </div>
                     
-                    <!-- Field Mappings -->
-                    <div id="jpi-field-mappings" class="jpi-field-mappings" style="display: none; margin: 20px 0; padding: 15px; background: #f9f9f9; border: 1px solid #ddd; border-radius: 4px;">
-                        <h3><?php esc_html_e('Field Mappings', 'json-post-importer'); ?></h3>
-                        <p class="description"><?php esc_html_e('Map your JSON fields to WordPress post fields.', 'json-post-importer'); ?></p>
-                        <div id="jpi-field-mappings-container"></div>
-                    </div>
-                    
-                    <div class="jpi-preview-actions">
-                        <button type="button" id="jpi-cancel-preview" class="button">
-                            <?php esc_html_e('Cancel', 'json-post-importer'); ?>
+                    <!-- Log Actions -->
+                    <div class="jpi-log-actions">
+                        <button type="button" id="jpi-clear-all-logs" class="button button-secondary clear">
+                            <?php esc_html_e('Clear All Logs', 'json-post-importer'); ?>
                         </button>
-                        <button type="button" id="jpi-confirm-import" class="button button-primary">
-                            <?php esc_html_e('Import', 'json-post-importer'); ?>
-                        </button>
-                        <span id="jpi-upload-spinner" class="spinner" style="float: none; display: none;"></span>
                     </div>
-                    
-                    <!-- Error Details -->
-                    <div id="jpi-error-details" class="jpi-error-details" style="display: none; margin-top: 20px; padding: 15px; background: #f8d7da; border: 1px solid #f5c6cb; border-radius: 4px; color: #721c24;">
-                        <!-- Error details will be inserted here by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- Modal Backdrop -->
+    <div id="jpi-modal-backdrop" class="jpi-modal-backdrop" style="display: none;"></div>
+
+    <!-- Modal Wrapper -->
+    <div id="jpi-modal-wrap" class="jpi-modal-wrap" role="dialog" aria-labelledby="jpi-modal-title" aria-describedby="jpi-modal-description" tabindex="-1" style="display: none;">
+        <div class="jpi-modal-content">
+            <div class="jpi-modal-header">
+                <h2 id="jpi-modal-title"><?php esc_html_e('Preview & Field Mapping', 'json-post-importer'); ?></h2>
+                <button type="button" id="jpi-modal-close" class="jpi-modal-close" aria-label="<?php esc_attr_e('Close', 'json-post-importer'); ?>">
+                    <span class="screen-reader-text"><?php esc_html_e('Close', 'json-post-importer'); ?></span>
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            
+            <div class="jpi-modal-body">
+                <div id="jpi-preview-loading" class="jpi-loading" style="display: none;">
+                    <span class="spinner is-active"></span>
+                    <span><?php esc_html_e('Generating preview...', 'json-post-importer'); ?></span>
+                </div>
+                
+                <div id="jpi-preview-error" class="jpi-error" style="display: none;">
+                    <div class="notice notice-error">
+                        <p id="jpi-preview-error-message"></p>
                     </div>
                 </div>
                 
-                <span class="spinner" id="jpi-upload-spinner"></span>
+                <!-- Tabs Navigation -->
+                <nav class="jpi-tab-nav">
+                    <ul class="jpi-tab-links">
+                        <li><a href="#jpi-tab-preview" class="jpi-tab-link active"><?php esc_html_e('Preview', 'json-post-importer'); ?></a></li>
+                        <li><a href="#jpi-tab-mapping" class="jpi-tab-link"><?php esc_html_e('Field Mapping', 'json-post-importer'); ?></a></li>
+                    </ul>
+                </nav>
+                
+                <!-- Tab Content -->
+                <div class="jpi-tab-content">
+                    <div id="jpi-tab-preview" class="jpi-tab-pane active">
+                        <div id="jpi-json-preview" class="jpi-json-preview">
+                            <pre><code id="jpi-json-content"></code></pre>
+                        </div>
+                    </div>
+                    
+                    <div id="jpi-tab-mapping" class="jpi-tab-pane">
+                        <div id="jpi-field-mapping-container">
+                            <div class="jpi-mapping-placeholder">
+                                <p><?php esc_html_e('After uploading a JSON file, you can map the fields to WordPress post fields here.', 'json-post-importer'); ?></p>
+                            </div>
+                        </div>
+                        
+                        <!-- Import Options Section -->
+                        <div id="jpi-import-options" class="jpi-import-options-section" style="display: none;">
+                            <h3><?php esc_html_e('Import Options', 'json-post-importer'); ?></h3>
+                            <div class="jpi-options-grid">
+                                <div class="jpi-option-group">
+                                    <label for="jpi-post-type"><?php esc_html_e('Post Type', 'json-post-importer'); ?></label>
+                                    <select id="jpi-post-type" name="jpi_post_type" class="regular-text">
+                                        <option value="post"><?php esc_html_e('Post', 'json-post-importer'); ?></option>
+                                        <option value="page"><?php esc_html_e('Page', 'json-post-importer'); ?></option>
+                                        <?php
+                                        $post_types = get_post_types(array('public' => true, '_builtin' => false), 'objects');
+                                        foreach ($post_types as $post_type) {
+                                            echo '<option value="' . esc_attr($post_type->name) . '">' . esc_html($post_type->label) . '</option>';
+                                        }
+                                        ?>
+                                    </select>
+                                    <p class="description"><?php esc_html_e('Select the post type for imported content.', 'json-post-importer'); ?></p>
+                                </div>
+                                
+                                <div class="jpi-option-group">
+                                    <label for="jpi-post-status"><?php esc_html_e('Default Post Status', 'json-post-importer'); ?></label>
+                                    <select id="jpi-post-status" name="jpi_post_status" class="regular-text">
+                                        <option value="draft"><?php esc_html_e('Draft', 'json-post-importer'); ?></option>
+                                        <option value="publish"><?php esc_html_e('Published', 'json-post-importer'); ?></option>
+                                        <option value="pending"><?php esc_html_e('Pending Review', 'json-post-importer'); ?></option>
+                                        <option value="private"><?php esc_html_e('Private', 'json-post-importer'); ?></option>
+                                    </select>
+                                    <p class="description"><?php esc_html_e('Default status for imported posts (can be overridden by field mapping).', 'json-post-importer'); ?></p>
+                                </div>
+                                
+                                <div class="jpi-option-group">
+                                    <label for="jpi-batch-size"><?php esc_html_e('Batch Size', 'json-post-importer'); ?></label>
+                                    <input type="number" id="jpi-batch-size" name="jpi_batch_size" value="10" min="1" max="100" class="small-text">
+                                    <p class="description"><?php esc_html_e('Number of posts to process in each batch. Lower numbers are safer for large imports.', 'json-post-importer'); ?></p>
+                                </div>
+                                
+                                <div class="jpi-option-group">
+                                    <label for="jpi-default-author"><?php esc_html_e('Default Author', 'json-post-importer'); ?></label>
+                                    <?php
+                                    wp_dropdown_users(array(
+                                        'name' => 'jpi_default_author',
+                                        'id' => 'jpi-default-author',
+                                        'selected' => get_current_user_id(),
+                                        'capability' => 'edit_posts',
+                                        'class' => 'regular-text'
+                                    ));
+                                    ?>
+                                    <p class="description"><?php esc_html_e('Default author for imported posts (can be overridden by field mapping).', 'json-post-importer'); ?></p>
+                                </div>
+                            </div>
+                            
+                            <div class="jpi-checkbox-options">
+                                <label>
+                                    <input type="checkbox" id="jpi-update-existing" name="jpi_update_existing" checked>
+                                    <?php esc_html_e('Update existing posts', 'json-post-importer'); ?>
+                                </label>
+                                <p class="description"><?php esc_html_e('If a post with the same title or slug exists, update it instead of creating a duplicate.', 'json-post-importer'); ?></p>
+                                
+                                <label>
+                                    <input type="checkbox" id="jpi-import-images" name="jpi_import_images" checked>
+                                    <?php esc_html_e('Import featured images', 'json-post-importer'); ?>
+                                </label>
+                                <p class="description"><?php esc_html_e('Download and import featured images from URLs in the JSON data.', 'json-post-importer'); ?></p>
+                                
+                                <label>
+                                    <input type="checkbox" id="jpi-create-terms" name="jpi_create_terms" checked>
+                                    <?php esc_html_e('Create missing taxonomy terms', 'json-post-importer'); ?>
+                                </label>
+                                <p class="description"><?php esc_html_e('Automatically create categories, tags, and other taxonomy terms if they don\'t exist.', 'json-post-importer'); ?></p>
+                                
+                                <label>
+                                    <input type="checkbox" id="jpi-preserve-ids" name="jpi_preserve_ids">
+                                    <?php esc_html_e('Preserve post IDs', 'json-post-importer'); ?>
+                                </label>
+                                <p class="description"><?php esc_html_e('Attempt to preserve post IDs from the JSON data (may cause conflicts).', 'json-post-importer'); ?></p>
+                                
+                                <label>
+                                    <input type="checkbox" id="jpi-import-meta" name="jpi_import_meta" checked>
+                                    <?php esc_html_e('Import custom fields', 'json-post-importer'); ?>
+                                </label>
+                                <p class="description"><?php esc_html_e('Import custom fields and meta data from the JSON.', 'json-post-importer'); ?></p>
+                                
+                                <label>
+                                    <input type="checkbox" id="jpi-dry-run" name="jpi_dry_run">
+                                    <?php esc_html_e('Dry run (preview only)', 'json-post-importer'); ?>
+                                </label>
+                                <p class="description"><?php esc_html_e('Test the import without actually creating posts. Useful for validation.', 'json-post-importer'); ?></p>
+                            </div>
+                            
+                            <!-- Advanced Options -->
+                            <details class="jpi-advanced-options">
+                                <summary><?php esc_html_e('Advanced Options', 'json-post-importer'); ?></summary>
+                                <div class="jpi-advanced-content">
+                                    <div class="jpi-option-group">
+                                        <label for="jpi-date-format"><?php esc_html_e('Date Format', 'json-post-importer'); ?></label>
+                                        <input type="text" id="jpi-date-format" name="jpi_date_format" value="Y-m-d H:i:s" class="regular-text">
+                                        <p class="description"><?php esc_html_e('PHP date format for parsing dates from JSON. Default: Y-m-d H:i:s', 'json-post-importer'); ?></p>
+                                    </div>
+                                    
+                                    <div class="jpi-option-group">
+                                        <label for="jpi-timeout"><?php esc_html_e('Request Timeout (seconds)', 'json-post-importer'); ?></label>
+                                        <input type="number" id="jpi-timeout" name="jpi_timeout" value="30" min="10" max="300" class="small-text">
+                                        <p class="description"><?php esc_html_e('Maximum time to wait for each batch to process.', 'json-post-importer'); ?></p>
+                                    </div>
+                                    
+                                    <div class="jpi-option-group">
+                                        <label for="jpi-memory-limit"><?php esc_html_e('Memory Limit Override', 'json-post-importer'); ?></label>
+                                        <input type="text" id="jpi-memory-limit" name="jpi_memory_limit" placeholder="512M" class="regular-text">
+                                        <p class="description"><?php esc_html_e('Override PHP memory limit for large imports (e.g., 512M, 1G).', 'json-post-importer'); ?></p>
+                                    </div>
+                                    
+                                    <label>
+                                        <input type="checkbox" id="jpi-skip-duplicates" name="jpi_skip_duplicates">
+                                        <?php esc_html_e('Skip duplicate content', 'json-post-importer'); ?>
+                                    </label>
+                                    <p class="description"><?php esc_html_e('Skip posts with identical content to existing posts.', 'json-post-importer'); ?></p>
+                                    
+                                    <label>
+                                        <input type="checkbox" id="jpi-enable-revisions" name="jpi_enable_revisions">
+                                        <?php esc_html_e('Enable post revisions', 'json-post-importer'); ?>
+                                    </label>
+                                    <p class="description"><?php esc_html_e('Create post revisions during import (may slow down the process).', 'json-post-importer'); ?></p>
+                                </div>
+                            </details>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </form>
-       
+            
+            <div class="jpi-modal-footer">
+                <button type="button" id="jpi-cancel-preview" class="button">
+                    <?php esc_html_e('Cancel', 'json-post-importer'); ?>
+                </button>
+                <button type="button" class="jpi-import-button button button-primary" disabled>
+                    <?php esc_html_e('Import Selected Items', 'json-post-importer'); ?>
+                </button>
+            </div>
+        </div>
     </div>
+
     
-    <!-- Preview Section -->
-    <?php include_once plugin_dir_path(__FILE__) . 'json-post-importer-preview.php'; ?>
-    
-    <div class="card" style="margin-top: 20px;">
+    <!-- Import History Section -->
+    <div class="jpi-card" style="margin-top: 20px;">
+        <div class="jpi-section-header">
+            <h2><?php echo esc_html__('Import History', 'json-post-importer'); ?></h2>
+            <div class="jpi-section-actions">
+                <button type="button" id="jpi-refresh-history" class="button">
+                    <?php echo esc_html__('Refresh', 'json-post-importer'); ?>
+                </button>
+                <button type="button" id="jpi-view-logs" class="button">
+                    <?php echo esc_html__('View Logs', 'json-post-importer'); ?>
+                </button>
+            </div>
+        </div>
+        
+        <div id="jpi-history-container">
+            <div class="jpi-loading-history">
+                <span class="spinner is-active"></span>
+                <span><?php echo esc_html__('Loading import history...', 'json-post-importer'); ?></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- API Information Section -->
+    <div class="jpi-card" style="margin-top: 20px;">
         <h2><?php echo esc_html__('API Endpoint', 'json-post-importer'); ?></h2>
         <p><?php echo esc_html__('You can also import posts programmatically using the following REST API endpoint:', 'json-post-importer'); ?></p>
         
@@ -268,6 +473,48 @@ function display_admin_notice() {
       "status": "publish"
     }
   }'</code></pre>
+        </div>
+    </div>
+
+    <!-- Logs Modal -->
+    <div id="jpi-logs-modal-backdrop" class="jpi-modal-backdrop" style="display: none;"></div>
+    <div id="jpi-logs-modal-wrap" class="jpi-modal-wrap" role="dialog" aria-labelledby="jpi-logs-modal-title" tabindex="-1" style="display: none;">
+        <div class="jpi-modal-content">
+            <div class="jpi-modal-header">
+                <h2 id="jpi-logs-modal-title"><?php esc_html_e('Import Logs', 'json-post-importer'); ?></h2>
+                <button type="button" id="jpi-logs-modal-close" class="jpi-modal-close" aria-label="<?php esc_attr_e('Close', 'json-post-importer'); ?>">
+                    <span class="screen-reader-text"><?php esc_html_e('Close', 'json-post-importer'); ?></span>
+                    <span aria-hidden="true">×</span>
+                </button>
+            </div>
+            
+            <div class="jpi-modal-body">
+                <div class="jpi-logs-filters">
+                    <select id="jpi-logs-level-filter">
+                        <option value=""><?php esc_html_e('All Levels', 'json-post-importer'); ?></option>
+                        <option value="info"><?php esc_html_e('Info', 'json-post-importer'); ?></option>
+                        <option value="warning"><?php esc_html_e('Warning', 'json-post-importer'); ?></option>
+                        <option value="error"><?php esc_html_e('Error', 'json-post-importer'); ?></option>
+                    </select>
+                    <input type="text" id="jpi-logs-search" placeholder="<?php esc_attr_e('Search logs...', 'json-post-importer'); ?>" />
+                </div>
+                
+                <div id="jpi-logs-container">
+                    <div class="jpi-loading">
+                        <span class="spinner is-active"></span>
+                        <span><?php esc_html_e('Loading logs...', 'json-post-importer'); ?></span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="jpi-modal-footer">
+                <button type="button" id="jpi-clear-logs" class="button button-secondary">
+                    <?php esc_html_e('Clear Logs', 'json-post-importer'); ?>
+                </button>
+                <button type="button" id="jpi-close-logs" class="button button-primary">
+                    <?php esc_html_e('Close', 'json-post-importer'); ?>
+                </button>
+            </div>
         </div>
     </div>
 </div>

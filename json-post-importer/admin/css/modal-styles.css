@@ -1,0 +1,339 @@
+/* Modal Styles for JSON Post Importer */
+
+.jpi-modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 100000;
+    display: none;
+}
+
+.jpi-modal-wrap {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 100001;
+    overflow: auto;
+    display: none;
+    padding: 20px;
+}
+
+.jpi-modal-content {
+    background: #fff;
+    border-radius: 8px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    margin: 0 auto;
+    max-width: 900px;
+    width: 100%;
+    position: relative;
+    animation: modalFadeIn 0.3s ease-out;
+}
+
+@keyframes modalFadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.jpi-modal-header {
+    padding: 20px 30px;
+    border-bottom: 1px solid #e1e1e1;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #f8f9fa;
+    border-radius: 8px 8px 0 0;
+}
+
+.jpi-modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #23282d;
+}
+
+.jpi-modal-close {
+    background: none;
+    border: none;
+    font-size: 24px;
+    cursor: pointer;
+    padding: 0;
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: background-color 0.2s ease;
+}
+
+.jpi-modal-close:hover {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.jpi-modal-body {
+    padding: 30px;
+    max-height: 70vh;
+    overflow-y: auto;
+}
+
+.jpi-modal-footer {
+    padding: 20px 30px;
+    border-top: 1px solid #e1e1e1;
+    background: #f8f9fa;
+    border-radius: 0 0 8px 8px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
+/* Tab Navigation in Modal */
+.jpi-tab-nav {
+    margin-bottom: 20px;
+    border-bottom: 1px solid #c3c4c7;
+}
+
+.jpi-tab-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+}
+
+.jpi-tab-links li {
+    margin: 0;
+}
+
+.jpi-tab-link {
+    display: block;
+    padding: 12px 20px;
+    text-decoration: none;
+    color: #646970;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.jpi-tab-link:hover {
+    color: #2271b1;
+    text-decoration: none;
+}
+
+.jpi-tab-link.active {
+    color: #2271b1;
+    border-bottom-color: #2271b1;
+    font-weight: 600;
+}
+
+/* Tab Content */
+.jpi-tab-content {
+    margin-top: 20px;
+}
+
+.jpi-tab-pane {
+    display: none;
+}
+
+.jpi-tab-pane.active {
+    display: block;
+}
+
+/* JSON Preview in Modal */
+.jpi-json-preview {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    padding: 20px;
+    margin: 15px 0;
+    max-height: 400px;
+    overflow: auto;
+}
+
+.jpi-json-preview pre {
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.jpi-json-preview code {
+    background: none;
+    padding: 0;
+    color: #212529;
+}
+
+/* Field Mapping Container */
+#jpi-field-mappings-container {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 6px;
+    padding: 20px;
+}
+
+.jpi-field-mapping-section {
+    margin-bottom: 25px;
+}
+
+.jpi-field-mapping-section:last-child {
+    margin-bottom: 0;
+}
+
+.jpi-field-mapping-section h4 {
+    margin: 0 0 15px 0;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e1e1e1;
+    font-size: 16px;
+    font-weight: 600;
+    color: #23282d;
+}
+
+/* Loading State in Modal */
+.jpi-modal-body .jpi-loading {
+    text-align: center;
+    padding: 40px 20px;
+    background: none;
+    border: none;
+}
+
+.jpi-modal-body .jpi-loading .spinner {
+    float: none;
+    margin: 0 10px 0 0;
+}
+
+/* Error State in Modal */
+.jpi-modal-body .jpi-error {
+    margin: 20px 0;
+}
+
+.jpi-modal-body .jpi-error .notice {
+    margin: 0;
+}
+
+/* Responsive Modal */
+@media (max-width: 782px) {
+    .jpi-modal-wrap {
+        padding: 10px;
+    }
+    
+    .jpi-modal-content {
+        margin-top: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .jpi-modal-header,
+    .jpi-modal-body,
+    .jpi-modal-footer {
+        padding: 20px;
+    }
+    
+    .jpi-modal-header h2 {
+        font-size: 18px;
+    }
+    
+    .jpi-modal-body {
+        max-height: 60vh;
+    }
+    
+    .jpi-modal-footer {
+        flex-direction: column;
+    }
+    
+    .jpi-modal-footer .button {
+        width: 100%;
+        margin: 5px 0;
+    }
+    
+    .jpi-tab-links {
+        flex-direction: column;
+    }
+    
+    .jpi-tab-link {
+        border-bottom: none;
+        border-left: 3px solid transparent;
+    }
+    
+    .jpi-tab-link.active {
+        border-bottom: none;
+        border-left-color: #2271b1;
+        background: #f0f6fc;
+    }
+}
+
+@media (max-width: 480px) {
+    .jpi-modal-wrap {
+        padding: 5px;
+    }
+    
+    .jpi-modal-header,
+    .jpi-modal-body,
+    .jpi-modal-footer {
+        padding: 15px;
+    }
+    
+    .jpi-json-preview {
+        padding: 15px;
+        font-size: 12px;
+    }
+}
+
+/* Focus management */
+.jpi-modal-wrap:focus {
+    outline: none;
+}
+
+/* Accessibility improvements */
+.screen-reader-text {
+    clip: rect(1px, 1px, 1px, 1px);
+    position: absolute !important;
+    height: 1px;
+    width: 1px;
+    overflow: hidden;
+}
+
+/* Animation for modal backdrop */
+.jpi-modal-backdrop {
+    animation: backdropFadeIn 0.3s ease-out;
+}
+
+@keyframes backdropFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* Scrollbar styling for webkit browsers */
+.jpi-modal-body::-webkit-scrollbar,
+.jpi-json-preview::-webkit-scrollbar {
+    width: 8px;
+}
+
+.jpi-modal-body::-webkit-scrollbar-track,
+.jpi-json-preview::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 4px;
+}
+
+.jpi-modal-body::-webkit-scrollbar-thumb,
+.jpi-json-preview::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 4px;
+}
+
+.jpi-modal-body::-webkit-scrollbar-thumb:hover,
+.jpi-json-preview::-webkit-scrollbar-thumb:hover {
+    background: #a8a8a8;
+}

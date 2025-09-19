@@ -1,0 +1,585 @@
+/* Logs Interface Styles for JSON Post Importer */
+
+.jpi-logs-container {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 6px;
+    padding: 20px;
+    margin: 20px 0;
+}
+
+/* Logs Header */
+.jpi-logs-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding-bottom: 15px;
+    border-bottom: 2px solid #e1e1e1;
+}
+
+.jpi-logs-header h3 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #23282d;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.jpi-logs-header h3::before {
+    content: "📋";
+    font-size: 20px;
+}
+
+.jpi-logs-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* Debug Mode Toggle */
+.jpi-debug-toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #f8f9fa;
+    padding: 8px 12px;
+    border-radius: 4px;
+    border: 1px solid #e1e1e1;
+}
+
+.jpi-debug-toggle.enabled {
+    background: #e7f3ff;
+    border-color: #0073aa;
+}
+
+.jpi-debug-toggle label {
+    margin: 0;
+    font-weight: 500;
+    cursor: pointer;
+}
+
+.jpi-debug-toggle input[type="checkbox"] {
+    margin: 0;
+}
+
+/* Log Stats */
+.jpi-log-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.jpi-stat-card {
+    background: #f8f9fa;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    padding: 15px;
+    text-align: center;
+}
+
+.jpi-stat-card h4 {
+    margin: 0 0 8px 0;
+    font-size: 14px;
+    color: #646970;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.jpi-stat-value {
+    font-size: 24px;
+    font-weight: 600;
+    color: #23282d;
+    margin: 0;
+}
+
+.jpi-stat-card.files .jpi-stat-value {
+    color: #0073aa;
+}
+
+.jpi-stat-card.size .jpi-stat-value {
+    color: #00a32a;
+}
+
+.jpi-stat-card.debug .jpi-stat-value {
+    color: #dba617;
+}
+
+/* Log Files List */
+.jpi-log-files {
+    margin-bottom: 20px;
+}
+
+.jpi-log-files h4 {
+    margin: 0 0 15px 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: #23282d;
+}
+
+.jpi-log-file-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    background: #f8f9fa;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    margin-bottom: 8px;
+    transition: background-color 0.2s ease;
+}
+
+.jpi-log-file-item:hover {
+    background: #e9ecef;
+}
+
+.jpi-log-file-info {
+    flex: 1;
+}
+
+.jpi-log-file-name {
+    font-weight: 500;
+    color: #23282d;
+    margin-bottom: 4px;
+}
+
+.jpi-log-file-meta {
+    font-size: 12px;
+    color: #646970;
+}
+
+.jpi-log-file-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.jpi-log-file-actions .button {
+    padding: 4px 8px;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+/* Log Viewer */
+.jpi-log-viewer {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    margin-bottom: 20px;
+}
+
+.jpi-log-viewer-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 15px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e1e1e1;
+    border-radius: 4px 4px 0 0;
+}
+
+.jpi-log-viewer-title {
+    font-weight: 500;
+    color: #23282d;
+    margin: 0;
+}
+
+.jpi-log-viewer-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.jpi-log-viewer-controls select {
+    font-size: 12px;
+    padding: 4px 8px;
+}
+
+.jpi-log-content {
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 15px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+    line-height: 1.4;
+    background: #fafafa;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.jpi-log-content.empty {
+    text-align: center;
+    color: #646970;
+    font-style: italic;
+    padding: 40px 15px;
+}
+
+/* Log Entry Styling */
+.jpi-log-entry {
+    margin-bottom: 8px;
+    padding: 8px;
+    border-radius: 3px;
+    border-left: 3px solid #e1e1e1;
+}
+
+.jpi-log-entry.error {
+    background: #fef7f7;
+    border-left-color: #d63638;
+    color: #721c24;
+}
+
+.jpi-log-entry.warning {
+    background: #fffbf0;
+    border-left-color: #dba617;
+    color: #8a6914;
+}
+
+.jpi-log-entry.info {
+    background: #f0f9ff;
+    border-left-color: #0073aa;
+    color: #004085;
+}
+
+.jpi-log-entry.debug {
+    background: #f8f9fa;
+    border-left-color: #646970;
+    color: #495057;
+}
+
+.jpi-log-timestamp {
+    font-weight: 600;
+    color: #23282d;
+}
+
+.jpi-log-level {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 8px;
+}
+
+.jpi-log-level.error {
+    background: #d63638;
+    color: #fff;
+}
+
+.jpi-log-level.warning {
+    background: #dba617;
+    color: #fff;
+}
+
+.jpi-log-level.info {
+    background: #0073aa;
+    color: #fff;
+}
+
+.jpi-log-level.debug {
+    background: #646970;
+    color: #fff;
+}
+
+/* Log Filters */
+.jpi-log-filters {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background: #f8f9fa;
+    border: 1px solid #e1e1e1;
+    border-radius: 4px;
+    flex-wrap: wrap;
+}
+
+.jpi-log-filter-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.jpi-log-filter-group label {
+    font-weight: 500;
+    color: #23282d;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.jpi-log-filter-group select,
+.jpi-log-filter-group input {
+    font-size: 13px;
+}
+
+/* Loading States */
+.jpi-logs-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    color: #646970;
+}
+
+.jpi-logs-loading::before {
+    content: "";
+    display: inline-block;
+    width: 20px;
+    height: 20px;
+    border: 2px solid #e1e1e1;
+    border-top-color: #0073aa;
+    border-radius: 50%;
+    animation: jpi-spin 1s linear infinite;
+    margin-right: 10px;
+}
+
+@keyframes jpi-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Error States */
+.jpi-logs-error {
+    text-align: center;
+    padding: 40px;
+    color: #d63638;
+    background: #fef7f7;
+    border: 1px solid #f5c6cb;
+    border-radius: 4px;
+}
+
+.jpi-logs-error::before {
+    content: "⚠️";
+    display: block;
+    font-size: 24px;
+    margin-bottom: 10px;
+}
+
+/* Log Search */
+.jpi-log-search {
+    position: relative;
+    flex: 1;
+    max-width: 300px;
+}
+
+.jpi-log-search input {
+    width: 100%;
+    padding-right: 35px;
+}
+
+.jpi-log-search-icon {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #646970;
+    pointer-events: none;
+}
+
+/* Log Actions */
+.jpi-log-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #e1e1e1;
+}
+
+.jpi-log-actions .button {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.jpi-log-actions .button::before {
+    font-size: 16px;
+}
+
+.jpi-log-actions .button.clear::before {
+    content: "🗑️";
+}
+
+.jpi-log-actions .button.download::before {
+    content: "💾";
+}
+
+.jpi-log-actions .button.refresh::before {
+    content: "🔄";
+}
+
+/* Responsive Design */
+@media (max-width: 782px) {
+    .jpi-logs-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+    }
+    
+    .jpi-logs-controls {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .jpi-log-stats {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 10px;
+    }
+    
+    .jpi-log-file-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .jpi-log-file-actions {
+        width: 100%;
+        justify-content: flex-end;
+    }
+    
+    .jpi-log-viewer-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .jpi-log-viewer-controls {
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .jpi-log-filters {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .jpi-log-filter-group {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .jpi-log-search {
+        max-width: none;
+        width: 100%;
+    }
+    
+    .jpi-log-actions {
+        flex-direction: column;
+    }
+    
+    .jpi-log-actions .button {
+        justify-content: center;
+    }
+}
+
+@media (max-width: 600px) {
+    .jpi-logs-container {
+        padding: 15px;
+    }
+    
+    .jpi-log-content {
+        font-size: 11px;
+        max-height: 300px;
+    }
+    
+    .jpi-stat-card {
+        padding: 12px;
+    }
+    
+    .jpi-stat-value {
+        font-size: 20px;
+    }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+    .jpi-logs-container {
+        background: #1d2327;
+        border-color: #3c434a;
+    }
+    
+    .jpi-log-content {
+        background: #2c3338;
+        color: #c9c9ca;
+    }
+    
+    .jpi-stat-card {
+        background: #2c3338;
+        border-color: #3c434a;
+    }
+    
+    .jpi-log-file-item {
+        background: #2c3338;
+        border-color: #3c434a;
+    }
+    
+    .jpi-log-file-item:hover {
+        background: #3c434a;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .jpi-logs-controls,
+    .jpi-log-viewer-controls,
+    .jpi-log-filters,
+    .jpi-log-actions {
+        display: none !important;
+    }
+    
+    .jpi-logs-container {
+        background: white !important;
+        border: 1px solid #000 !important;
+    }
+    
+    .jpi-log-content {
+        max-height: none !important;
+        background: white !important;
+        color: black !important;
+    }
+}
+
+/* Accessibility Improvements */
+.jpi-logs-container [role="button"] {
+    cursor: pointer;
+}
+
+.jpi-logs-container [aria-expanded="true"] .jpi-nested-indicator {
+    transform: rotate(90deg);
+}
+
+.jpi-logs-container .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+/* Focus Styles */
+.jpi-logs-container button:focus,
+.jpi-logs-container select:focus,
+.jpi-logs-container input:focus {
+    outline: 2px solid #2271b1;
+    outline-offset: 1px;
+}
+
+/* High Contrast Mode */
+@media (prefers-contrast: high) {
+    .jpi-log-entry {
+        border-left-width: 5px;
+    }
+    
+    .jpi-log-level {
+        border: 2px solid currentColor;
+    }
+}

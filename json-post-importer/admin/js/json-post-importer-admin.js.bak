@@ -1,0 +1,969 @@
+/**
+ * JSON Post Importer Admin JS
+ * Handles AJAX file uploads, preview, and user feedback
+ */
+
+(function($) {
+    'use strict';
+    
+    // Cache DOM elements
+    var $form = $('#jpi-upload-form'),
+        $fileInput = $('#json-file'),
+        $fileInfo = $('#jpi-file-info'),
+        $submitBtn = $('#jpi-submit'),
+        $previewBtn = $('#jpi-preview-btn'),
+        $spinner = $('#jpi-upload-spinner'),
+        $messageContainer = $('#jpi-message'),
+        $previewSection = $('#jpi-preview-section'),
+        $previewContent = $('#jpi-preview-content'),
+        $previewError = $('#jpi-preview-error'),
+        $previewLoading = $('#jpi-preview-loading'),
+        $dropZone = $('#jpi-drop-zone'),
+        $cancelPreviewBtn = $('#jpi-cancel-preview'),
+        $confirmImportBtn = $('#jpi-confirm-import'),
+        $fieldMappings = $('#jpi-field-mappings'),
+        $importOptions = $('#jpi-import-options'),
+        $errorDetails = $('#jpi-error-details'),
+        $progressBar = $('<div class="jpi-upload-progress"><div class="jpi-progress-bar"></div><div class="jpi-progress-text">0%</div></div>'),
+        currentFile = null;
+    
+    // Add syntax highlighting for JSON
+    function syntaxHighlight(json) {
+        if (typeof json !== 'string') {
+            json = JSON.stringify(json, null, 2);
+        }
+        
+        json = json.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        
+        // Add syntax highlighting
+        return json.replace(
+            /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+            function (match) {
+                let cls = 'number';
+                if (/^"/.test(match)) {
+                    if (/:$/.test(match)) {
+                        cls = 'key';
+                    } else {
+                        cls = 'string';
+                    }
+                } else if (/true|false/.test(match)) {
+                    cls = 'boolean';
+                } else if (/null/.test(match)) {
+                    cls = 'null';
+                }
+                return '<span class="' + cls + '">' + match + '</span>';
+            }
+        );
+    }
+
+    /**
+     * Create a preview row for the data table
+     */
+    function createPreviewRow(label, value) {
+        // Handle null/undefined values
+        if (value === null || value === undefined) {
+            value = 'N/A';
+        } 
+        // Convert objects to string representation
+        else if (typeof value === 'object') {
+            try {
+                value = JSON.stringify(value);
+            } catch (e) {
+                console.warn('Could not stringify value:', e);
+                value = '[Object]';
+            }
+        }
+        
+        // Escape HTML to prevent XSS
+        const escapeHtml = (unsafe) => {
+            if (typeof unsafe !== 'string') return unsafe;
+            return unsafe
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        };
+        
+        const safeLabel = escapeHtml(String(label || ''));
+        const safeValue = typeof value === 'string' ? escapeHtml(value) : value;
+        
+        return `
+            <tr>
+                <th>${safeLabel}</th>
+                <td>${safeValue || 'N/A'}</td>
+            </tr>
+        `;
+    }
+
+            $('.nav-tab-wrapper a').removeClass('nav-tab-active');
+            $(this).addClass('nav-tab-active');
+            
+            // Show the corresponding tab content
+            var target = $(this).attr('href');
+            $('.jpi-tab-pane').removeClass('active');
+            $(target).addClass('active');
+        });
+    });
+
+    /**
+     * Initialize import options
+     */
+    function initImportOptions() {
+        // Set default post type and status
+        if (jpi_vars.default_post_type) {
+            $('#jpi-post-type').val(jpi_vars.default_post_type);
+        }
+        
+        if (jpi_vars.default_post_status) {
+            $('#jpi-post-status').val(jpi_vars.default_post_status);
+        }
+    }
+    
+    /**
+     * Initialize file input and drag-drop
+     */
+    function initFileInput() {
+        // Add progress bar to form
+        $form.append($progressBar.hide());
+        
+        // Handle file selection
+        $fileInput.on('change', function() {
+            if (this.files && this.files[0]) {
+                const fileName = this.files[0].name;
+                $fileInfo.text(fileName).show();
+                $submitBtn.prop('disabled', false);
+                $previewBtn.prop('disabled', false).addClass('button-primary');
+                currentFile = this.files[0];
+            } else {
+                $previewBtn.prop('disabled', true).removeClass('button-primary');
+            }
+        });
+        
+        // Initialize preview button state
+        $previewBtn.prop('disabled', true);
+        
+        // Handle drag and drop
+        $dropZone.on('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).addClass('drag-over');
+        });
+        
+        $dropZone.on('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).removeClass('drag-over');
+        });
+        
+        $dropZone.on('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).removeClass('drag-over');
+            
+            const files = e.originalEvent.dataTransfer.files;
+            if (files.length) {
+                $fileInput[0].files = files;
+                // Manually update the preview button state since change event might not fire in all browsers
+                const fileName = files[0].name;
+                $fileInfo.text(fileName).show();
+                $submitBtn.prop('disabled', false);
+                $previewBtn.prop('disabled', false).addClass('button-primary');
+                currentFile = files[0];
+                
+                // Still trigger change for any other handlers
+                $fileInput.trigger('change');
+            } else {
+                $previewBtn.prop('disabled', true).removeClass('button-primary');
+            }
+        });
+        
+        // Handle click on drop zone - only trigger file input if the click wasn't on the file input itself
+        $dropZone.on('click', function(e) {
+            if (e.target !== $fileInput[0] && !$.contains($fileInput[0], e.target)) {
+                $fileInput.trigger('click');
+            }
+        });
+    }
+    
+    /**
+     * Initialize form submission
+     */
+    function initFormSubmission() {
+        $form.on('submit', function(e) {
+            e.preventDefault();
+            
+            if (!currentFile) {
+                showMessage('error', 'Please select a file to upload.');
+                return false;
+            }
+            
+            uploadFile(currentFile);
+            return false;
+        });
+    }
+    
+    /**
+     * Create a mapping row for the field mapping table
+     */
+    function createMappingRow(field, label, value) {
+        if (value === null || value === undefined) {
+            value = 'N/A';
+        } else if (typeof value === 'object') {
+            try {
+                value = JSON.stringify(value);
+            } catch (e) {
+                console.warn('Could not stringify value:', e);
+                value = '[Object]';
+            }
+        }
+        
+        return `
+            <tr>
+                <td><code>${field}</code></td>
+                <td>${label}</td>
+                <td>${value}</td>
+            </tr>
+        `;
+    }
+
+    /**
+     * Initialize preview handlers
+     */
+    function initPreviewHandlers() {
+        // Preview button click handler
+        $previewBtn.on('click', function(e) {
+            e.preventDefault();
+            
+            console.log('Preview button clicked');
+            
+            if (!currentFile) {
+                console.error('No file selected');
+                showMessage('error', 'Please select a valid JSON file first.');
+                return false;
+            }
+            
+            console.log('Processing file:', currentFile.name, 'Size:', currentFile.size, 'bytes');
+            
+            // Show loading state
+            $previewBtn.prop('disabled', true).text('Processing...');
+            $previewLoading.show();
+            $previewError.hide();
+            $previewContent.empty();
+            
+            // Read the file content
+            const reader = new FileReader();
+            
+            reader.onload = function(e) {
+                try {
+                    const fileContent = e.target.result;
+                    console.log('Raw file content:', fileContent.substring(0));
+                    
+                    // Parse to validate it's valid JSON
+                    let jsonData;
+                    try {
+                        jsonData = JSON.parse(fileContent);
+                    } catch (parseError) {
+                        console.error('JSON parse error:', parseError);
+                        throw new Error('Invalid JSON file: ' + parseError.message);
+
+return `
+    <tr>
+        <th>${safeLabel}</th>
+        <td>${safeValue || 'N/A'}</td>
+    </tr>
+`;
+
+}
+
+// Initialize the plugin
+$(document).ready(function() {
+    // Initialize preview button state first
+    $previewBtn.prop('disabled', true).removeClass('button-primary');
+
+    // Initialize other components
+    initFileInput();
+    initFormSubmission();
+    initDismissibleNotices();
+    initPreviewHandlers();
+    initImportOptions();
+
+    // Initialize tab switching
+    $('.nav-tab-wrapper a').on('click', function(e) {
+        e.preventDefault();
+
+        // Update active tab
+        $('.nav-tab-wrapper a').removeClass('nav-tab-active');
+        $(this).addClass('nav-tab-active');
+
+        // Show the corresponding tab content
+        var target = $(this).attr('href');
+        $('.jpi-tab-pane').removeClass('active');
+        $(target).addClass('active');
+    });
+});
+
+/**
+ * Initialize import options
+ */
+function initImportOptions() {
+    // Set default post type and status
+    if (jpi_vars.default_post_type) {
+        $('#jpi-post-type').val(jpi_vars.default_post_type);
+    }
+
+    if (jpi_vars.default_post_status) {
+        $('#jpi-post-status').val(jpi_vars.default_post_status);
+    }
+}
+
+/**
+ * Initialize file input and drag-drop
+ */
+function initFileInput() {
+    // Add progress bar to form
+    $form.append($progressBar.hide());
+
+    // Handle file selection
+    $fileInput.on('change', function() {
+        if (this.files && this.files[0]) {
+            const fileName = this.files[0].name;
+            $fileInfo.text(fileName).show();
+            $submitBtn.prop('disabled', false);
+            $previewBtn.prop('disabled', false).addClass('button-primary');
+            currentFile = this.files[0];
+        } else {
+            $previewBtn.prop('disabled', true).removeClass('button-primary');
+        }
+    });
+
+    // Initialize preview button state
+    $previewBtn.prop('disabled', true);
+
+    // Handle drag and drop
+    $dropZone.on('dragover', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).addClass('drag-over');
+    });
+
+    $dropZone.on('dragleave', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).removeClass('drag-over');
+    });
+
+    $dropZone.on('drop', function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        $(this).removeClass('drag-over');
+
+        const files = e.originalEvent.dataTransfer.files;
+        if (files.length) {
+            $fileInput[0].files = files;
+            // Manually update the preview button state since change event might not fire in all browsers
+            const fileName = files[0].name;
+            $fileInfo.text(fileName).show();
+            $submitBtn.prop('disabled', false);
+            $previewBtn.prop('disabled', false).addClass('button-primary');
+            currentFile = files[0];
+
+            // Still trigger change for any other handlers
+            $fileInput.trigger('change');
+        } else {
+            $previewBtn.prop('disabled', true).removeClass('button-primary');
+        }
+    });
+
+    // Handle click on drop zone - only trigger file input if the click wasn't on the file input itself
+    $dropZone.on('click', function(e) {
+        if (e.target !== $fileInput[0] && !$.contains($fileInput[0], e.target)) {
+            $fileInput.trigger('click');
+        }
+    });
+}
+
+/**
+ * Initialize form submission
+ */
+function initFormSubmission() {
+    $form.on('submit', function(e) {
+        e.preventDefault();
+
+        if (!currentFile) {
+            showMessage('error', 'Please select a file to upload.');
+            return false;
+        }
+
+        uploadFile(currentFile);
+        return false;
+    });
+}
+
+/**
+ * Initialize preview handlers
+ */
+function initPreviewHandlers() {
+    // Preview button click handler
+    $previewBtn.on('click', function(e) {
+        e.preventDefault();
+
+        console.log('Preview button clicked');
+
+        if (!currentFile) {
+            console.error('No file selected');
+            showMessage('error', 'Please select a valid JSON file first.');
+            return false;
+        }
+
+        console.log('Processing file:', currentFile.name, 'Size:', currentFile.size, 'bytes');
+
+        // Show loading state
+        $previewBtn.prop('disabled', true).text('Processing...');
+        $previewLoading.show();
+        $previewError.hide();
+        $previewContent.empty();
+
+        // Read the file content
+        const reader = new FileReader();
+
+        reader.onload = function(e) {
+            try {
+                const fileContent = e.target.result;
+                console.log('Raw file content:', fileContent.substring(0));
+
+                // Parse to validate it's valid JSON
+                let jsonData;
+                try {
+                    jsonData = JSON.parse(fileContent);
+                    
+                    // Create preview HTML with field mapping UI
+                    const previewTitle = (jpi_vars.i18n && jpi_vars.i18n.data_preview) ? jpi_vars.i18n.data_preview : 'Data Preview';
+                    let previewHtml = [
+                        '<div class="jpi-preview-container">',
+                        '    <h3>', previewTitle, '</h3>',
+                        '    <div class="jpi-field-mapping-section">',
+                        '        <h4>Field Mappings</h4>',
+                        '        <table class="wp-list-table widefat fixed striped">',
+                        '            <thead>',
+                        '                <tr>',
+                        '                    <th>JSON Field</th>',
+                        '                    <th>Map To</th>',
+                        '                    <th>Sample Value</th>',
+                        '                </tr>',
+                        '            </thead>',
+                        '            <tbody id="jpi-field-mappings">'
+                    ].join('');
+                    
+                    // Extract content if it exists
+                    const data = jsonData.content || jsonData;
+                    
+                    // Add field mapping rows
+                    previewHtml += createMappingRow('heading', 'Post Title-1', data.heading || data.title || 'Untitled');
+                    
+                    // Content field with preview
+                    const contentPreview = data.content ? 
+                        data.content.substring(0, 100) + (data.content.length > 100 ? '...' : '') : 'N/A';
+                    previewHtml += createMappingRow('content', 'Post Content', contentPreview);
+                    
+                    // Other standard fields
+                    previewHtml += createMappingRow('short_headline', 'Post Excerpt', data.short_headline || data.synopsis || 'N/A');
+                    previewHtml += createMappingRow('filename', 'Post Slug', data.filename || '');
+                    previewHtml += createMappingRow('created_datetime', 'Post Date', data.created_datetime || 'N/A');
+                    previewHtml += createMappingRow('tags', 'Post Tags', data.tags || 'N/A');
+                    
+                    // Featured image
+                    if (data.featured_image) {
+                        previewHtml += createMappingRow('featured_image', 'Featured Image', 
+                            '<img src="' + data.featured_image + '" style="max-width: 200px; max-height: 100px;" />');
+                    }
+                    
+                    // Custom fields from top level
+                    if (jsonData.domain_name) {
+                        previewHtml += createMappingRow('domain_name', 'Custom Field: Domain', jsonData.domain_name);
+                    }
+                    if (jsonData.domain_lang) {
+                        previewHtml += createMappingRow('domain_lang', 'Custom Field: Language', jsonData.domain_lang);
+                    }
+                    if (jsonData.user_id) {
+                        previewHtml += createMappingRow('user_id', 'Custom Field: User ID', jsonData.user_id);
+                    }
+                    if (jsonData.email) {
+                        previewHtml += createMappingRow('email', 'Custom Field: Email', jsonData.email);
+                    }
+                    
+                    // Close preview HTML
+                    previewHtml += '</tbody></table></div></div>';
+                    
+                    // Show preview
+                    $previewContent.html(previewHtml).show();
+                    $previewSection.slideDown();
+                    
+                    // Process the JSON data
+                    processJsonData(jsonData);
+                    
+                } catch (error) {
+                    console.error('Error processing JSON file:', error);
+                    showPreviewError('Error processing JSON file: ' + error.message);
+                } finally {
+                    $previewLoading.hide();
+                    $previewBtn.prop('disabled', false).text('Preview');
+                }
+            };
+
+            reader.onerror = function() {
+                console.error('Error reading file');
+                $previewLoading.hide();
+                $previewBtn.prop('disabled', false).text('Preview');
+                showPreviewError('Error reading the file. Please try again.');
+            };
+
+            // Read the file as text
+            reader.readAsText(currentFile);
+        });
+    }
+    
+    // Process JSON data and update the UI
+    function processJsonData(jsonData) {
+        try {
+            // Initialize field mapping UI
+            initFieldMappingUI(jsonData);
+            
+            // Enable import button
+            $confirmImportBtn.prop('disabled', false).addClass('button-primary');
+            
+            // Show preview section
+            $previewSection.show();
+            
+        } catch (error) {
+            console.error('Error processing JSON data:', error);
+            showPreviewError('Error processing JSON data: ' + error.message);
+        }
+    }
+    
+    /**
+     * Upload a file via AJAX with progress tracking
+     */
+    function uploadFile(file) {
+        if (!file) return;
+        
+        // Show progress bar
+        $progressBar.show().find('.jpi-progress-bar').css('width', '0%');
+        $progressBar.find('.jpi-progress-text').text('0%');
+        
+        // Create FormData and append file
+        const formData = new FormData();
+        formData.append('action', 'jpi_handle_upload');
+        formData.append('nonce', jpi_vars.upload_nonce);
+        formData.append('json_file', file);
+        
+        // Add field mappings to form data as a JSON string
+        const fieldMappings = getFieldMappings();
+        formData.append('field_mappings', JSON.stringify(fieldMappings));
+        
+        // Log the data being sent (for debugging)
+        console.log('Field mappings:', fieldMappings);
+        
+        setUploadingState(true);
+        
+        // Create XHR for better progress tracking
+        const xhr = new XMLHttpRequest();
+        
+        // Progress event handler
+        xhr.upload.addEventListener('progress', function(e) {
+            if (e.lengthComputable) {
+                const percentComplete = Math.round((e.loaded / e.total) * 100);
+                updateProgressBar(percentComplete);
+            }
+        }, false);
+        
+        // Load event handler (when upload is complete)
+        xhr.addEventListener('load', function() {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                try {
+                    const response = JSON.parse(xhr.responseText);
+                    handleUploadSuccess(response);
+                } catch (e) {
+                    handleUploadError(xhr, 'parseerror', e.toString());
+                }
+            } else {
+                handleUploadError(xhr, 'error', 'Server returned status: ' + xhr.status);
+            }
+            
+            setUploadingState(false);
+            // Keep progress bar visible for a moment to show 100%
+            setTimeout(() => {
+                $progressBar.fadeOut(500, function() {
+                    updateProgressBar(0); // Reset progress
+                });
+            }, 500);
+        });
+        
+        // Error handler
+        xhr.addEventListener('error', function() {
+            handleUploadError(xhr, 'error', 'Network error occurred');
+            setUploadingState(false);
+            $progressBar.fadeOut();
+        });
+        
+        // Open and send the request
+        xhr.open('POST', jpi_vars.ajax_url, true);
+        xhr.send(formData);
+    }
+    
+    /**
+     * Handle successful upload
+     */
+    function handleUploadSuccess(response) {
+        if (response.success) {
+            showMessage('success', response.data.message || 'File uploaded successfully');
+            
+            // Store the uploaded file data
+            if (response.data.file_name) {
+                currentFile = $fileInput[0].files[0]; // Keep the original file reference
+                window.currentJsonData = response.data.json_data; // Store the parsed JSON data
+            }
+            
+            // Enable preview and submit buttons
+            $previewBtn.prop('disabled', false);
+            $submitBtn.prop('disabled', false);
+            
+            // Show preview if data is available
+            if (response.data.preview_html) {
+                $previewContent.html(response.data.preview_html).show();
+                $previewSection.slideDown();
+            }
+        } else {
+            const errorMsg = response.data && response.data.message 
+                ? response.data.message 
+                : 'An unknown error occurred during upload.';
+            showMessage('error', errorMsg);
+        }
+    }
+    
+    /**
+     * Handle upload error
+     */
+    function handleUploadError(xhr, errorType, error) {
+        let errorMessage = 'An error occurred during file upload.';
+        
+        try {
+            const response = JSON.parse(xhr.responseText);
+            if (response && response.data && response.data.message) {
+                errorMessage = response.data.message;
+            }
+        } catch (e) {
+            console.error('Error parsing error response:', e);
+        }
+        
+        if (jpi_vars.enable_debug) {
+            errorMessage += ' (' + errorType + ': ' + error + ')';
+        }
+        
+        showMessage('error', errorMessage);
+    }
+    
+    /**
+     * Start the import process
+     */
+    function startImport() {
+        if (!currentFile) {
+            showMessage('error', 'No file selected for import.');
+            return;
+        }
+        
+        setUploadingState(true);
+        
+        // Create FormData with import data
+        const formData = new FormData();
+        formData.append('action', 'jpi_handle_import');
+        formData.append('nonce', jpi_vars.import_nonce);
+        formData.append('file_name', currentFile.name);
+        
+        // Add import options
+        const importOptions = {
+            post_type: $('#jpi-post-type').val(),
+            post_status: $('#jpi-post-status').val(),
+            update_existing: $('#jpi-update-existing').is(':checked'),
+            create_terms: $('#jpi-create-terms').is(':checked'),
+            import_featured_image: $('#jpi-import-featured-image').is(':checked'),
+            import_attachments: $('#jpi-import-attachments').is(':checked')
+        };
+        
+        formData.append('import_options', JSON.stringify(importOptions));
+        
+        // Add field mappings
+        const fieldMappings = getFieldMappings();
+        formData.append('field_mappings', JSON.stringify(fieldMappings));
+        
+        // Send import request
+        $.ajax({
+            url: jpi_vars.ajax_url,
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    showMessage('success', response.data.message || 'Import completed successfully');
+                    resetForm();
+                } else {
+                    handleImportError(response);
+                }
+            },
+            error: function(xhr, status, error) {
+                handleImportError({
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    responseText: xhr.responseText
+                });
+            },
+            complete: function() {
+                setUploadingState(false);
+            }
+        });
+    }
+    
+    /**
+     * Handle import error
+     */
+    function handleImportError(error) {
+        let errorMessage = 'An error occurred during import.';
+        
+        if (typeof error === 'string') {
+            errorMessage = error;
+        } else if (error && error.message) {
+            errorMessage = error.message;
+        } else if (error.responseJSON && error.responseJSON.data && error.responseJSON.data.message) {
+            errorMessage = error.responseJSON.data.message;
+        } else if (error.statusText) {
+            errorMessage += ' (' + error.status + ' ' + error.statusText + ')';
+        }
+        
+        showMessage('error', errorMessage);
+    }
+    
+    /**
+     * Show preview error message
+     */
+    function showPreviewError(message) {
+        $previewLoading.hide();
+        $previewError.html('<div class="notice notice-error"><p>' + message + '</p></div>').show();
+        $previewSection.hide();
+        $submitBtn.prop('disabled', true);
+    }
+    
+    /**
+     * Show a message to the user
+     */
+    function showMessage(type, message, details) {
+        // Clear any existing messages
+        $messageContainer.empty().show();
+        
+        // Create message element
+        var $message = $('<div>').addClass('notice notice-' + type + ' is-dismissible');
+        $message.append($('<p>').text(message));
+        
+        // Add details if provided
+        if (details) {
+            if (typeof details === 'string') {
+                $message.append($('<pre>').text(details));
+            } else if (typeof details === 'object') {
+                $message.append($('<pre>').text(JSON.stringify(details, null, 2)));
+            }
+        }
+        
+        // Add dismiss button
+        $message.append($('<button>', {
+            type: 'button',
+            'class': 'notice-dismiss',
+            html: '<span class="screen-reader-text">Dismiss this notice.</span>'
+        }));
+        
+        $messageContainer.append($message);
+        
+        // Auto-hide after 5 seconds for success messages
+        if (type === 'success') {
+            setTimeout(function() {
+                $message.fadeOut();
+            }, 5000);
+        }
+    }
+    
+    /**
+     * Get field mappings from the form
+     */
+    function getFieldMappings() {
+        const mappings = {};
+        $('.jpi-field-mapping').each(function() {
+            const $this = $(this);
+            const field = $this.data('field');
+            const value = $this.val();
+            
+            if (field && value) {
+                mappings[field] = value;
+            }
+        });
+        
+        return mappings;
+    }
+    
+    /**
+     * Update progress bar
+     */
+    function updateProgressBar(percent) {
+        $progressBar.find('.jpi-progress-bar').css('width', percent + '%');
+        $progressBar.find('.jpi-progress-text').text(percent + '%');
+    }
+    
+    /**
+     * Set uploading state
+     */
+    function setUploadingState(isUploading) {
+        if (isUploading) {
+            $submitBtn.prop('disabled', true);
+            $previewBtn.prop('disabled', true);
+            $confirmImportBtn.prop('disabled', true);
+            $spinner.show();
+        } else {
+            $submitBtn.prop('disabled', false);
+            $previewBtn.prop('disabled', false);
+            $confirmImportBtn.prop('disabled', false);
+            $spinner.hide();
+        }
+    }
+    
+    /**
+     * Initialize field mapping UI
+     */
+    function initFieldMappingUI() {
+        // Initialize select2 for better dropdowns if available
+        if ($.fn.select2) {
+            $('.jpi-field-select').select2({
+                width: '100%',
+                placeholder: '-- Select Field --',
+                allowClear: true
+            });
+        }
+        
+        // Handle field mapping changes
+        $('.jpi-field-select').on('change', function() {
+            const $select = $(this);
+            const fieldName = $select.data('field');
+            const fieldType = $select.val();
+            
+            // Update the field mapping data
+            if (fieldType) {
+                $select.addClass('mapped');
+                
+                // Show example value if available
+                const $example = $select.closest('tr').find('.jpi-example-value');
+                if ($example.length) {
+                    $example.show();
+                }
+            } else {
+                $select.removeClass('mapped');
+                
+                // Hide example value
+                const $example = $select.closest('tr').find('.jpi-example-value');
+                if ($example.length) {
+                    $example.hide();
+                }
+            }
+            
+            // Toggle required field indicator
+            if ($select.hasClass('required') && !fieldType) {
+                $select.addClass('error');
+            } else {
+                $select.removeClass('error');
+            }
+        });
+        
+        // Toggle all fields in a section
+        $('.jpi-toggle-section').on('click', function(e) {
+            e.preventDefault();
+            const $section = $(this).closest('.jpi-field-section');
+            const $target = $section.find('.jpi-field-select');
+            const isVisible = $section.hasClass('expanded');
+            
+            if (isVisible) {
+                $section.removeClass('expanded').addClass('collapsed');
+                $section.find('.jpi-field-mapping').slideUp();
+                $(this).text('+ ' + $(this).data('show-text'));
+            } else {
+                $section.removeClass('collapsed').addClass('expanded');
+                $section.find('.jpi-field-mapping').slideDown();
+                $(this).text('- ' + $(this).data('hide-text'));
+            }
+        });
+    }
+    
+    /**
+     * Reset the preview section
+     */
+    function resetPreview() {
+        // Clean up Select2 instances if they exist
+        if ($.fn.select2) {
+            $('.jpi-field-select').select2('destroy');
+        }
+        
+        // Remove any event handlers
+        $('.jpi-field-select').off('change');
+        $('.jpi-toggle-section').off('click');
+        
+        // Reset the UI
+        $previewContent.empty();
+        $previewError.empty();
+        $previewSection.hide();
+        currentFile = null;
+        toggleButtons(false);
+    }
+    
+    /**
+     * Reset upload state
+     */
+    function resetUploadState() {
+        $fileInput.val('');
+        $fileInfo.hide();
+        $submitBtn.prop('disabled', true);
+        $previewBtn.prop('disabled', true);
+        $previewContent.empty();
+        $previewError.empty();
+        $previewSection.hide();
+        currentFile = null;
+    }
+    
+    /**
+     * Reset the form
+     */
+    function resetForm() {
+        $form.trigger('reset');
+        resetUploadState();
+        $previewContent.empty();
+    }
+    
+    /**
+     * Toggle buttons state
+     */
+    function toggleButtons(enable) {
+        $submitBtn.prop('disabled', !enable);
+        $previewBtn.prop('disabled', !enable);
+        $confirmImportBtn.prop('disabled', !enable);
+    }
+    
+    /**
+     * Initialize dismissible notices
+     */
+    function initDismissibleNotices() {
+        $(document).on('click', '.notice-dismiss', function() {
+            $(this).closest('.notice').fadeOut('slow', function() {
+                $(this).remove();
+            });
+        });
+    }
+    
+    // Initialize the plugin when document is ready
+    $(document).ready(init);
+    
+})(jQuery);

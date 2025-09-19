@@ -5,6 +5,13 @@
 class JSON_Post_Creator {
     
     /**
+     * The logger instance
+     *
+     * @var JSON_Post_Importer_Logger
+     */
+    private $logger;
+    
+    /**
      * Default post type for imported content
      *
      * @var string
@@ -40,6 +47,13 @@ class JSON_Post_Creator {
     );
     
     /**
+     * Constructor
+     */
+    public function __construct() {
+        $this->logger = new JSON_Post_Importer_Logger();
+    }
+    
+    /**
      * Create or update a post from JSON data
      *
      * @param array $item The JSON data for a single post
@@ -49,8 +63,12 @@ class JSON_Post_Creator {
     public function create_or_update_post($item, $options = array()) {
         // Validate input
         if (empty($item) || !is_array($item)) {
+            $this->logger->error('Invalid post data provided - empty or not an array');
             return new WP_Error('invalid_data', 'Invalid post data provided');
         }
+        
+        // Debug log the incoming item and options
+        $this->logger->debug('Processing post item', array('item' => $item, 'options' => $options));
         
         // Merge with defaults
         $options = wp_parse_args($options, array(
@@ -73,19 +91,29 @@ class JSON_Post_Creator {
         $is_update = false;
         
         if ($existing_id) {
+            $this->logger->debug('Found existing post', array('post_id' => $existing_id));
             if (!$options['update_existing']) {
+                $this->logger->info('Update is disabled, skipping existing post', array('post_id' => $existing_id));
                 return new WP_Error('post_exists', 'Post already exists and update is disabled', array('id' => $existing_id));
             }
             $post_data['ID'] = $existing_id;
             $is_update = true;
+            $this->logger->debug('Will update existing post', array('post_id' => $existing_id));
+        } else {
+            $this->logger->debug('No existing post found, will create new post');
         }
         
         // Insert or update post
+        $this->logger->debug('Attempting to ' . ($is_update ? 'update' : 'create') . ' post', array('post_data' => $post_data));
+        
         $post_id = $is_update ? wp_update_post($post_data, true) : wp_insert_post($post_data, true);
         
         if (is_wp_error($post_id)) {
+            $this->logger->error('Error ' . ($is_update ? 'updating' : 'creating') . ' post: ' . $post_id->get_error_message(), array('post_data' => $post_data));
             return $post_id;
         }
+        
+        $this->logger->log_post_action($is_update ? 'updated' : 'created', $post_id, $item);
         
         // Process taxonomies
         $this->process_taxonomies($post_id, $item, $options);
@@ -417,43 +445,22 @@ class JSON_Post_Creator {
      * Process attachments for a post
      *
      * @param int $post_id Post ID
-     * @param array $attachments Array of attachment data
-     * @param array $options Import options
-     */
-    private function process_attachments($post_id, $attachments, $options) {
-        if (empty($attachments) || !is_array($attachments)) {
-            return;
-        }
-        
-        foreach ($attachments as $attachment) {
-            if (empty($attachment['url'])) {
-                continue;
-            }
-            
-            $this->upload_media($attachment['url'], array(
-                'post_parent' => $post_id,
-                'post_title' => $attachment['title'] ?? '',
-                'post_content' => $attachment['description'] ?? '',
-                'menu_order' => $attachment['menu_order'] ?? 0,
-            ));
-    }
-    
-    /**
-     * Upload media from URL and return attachment ID
-     *
-     * @param string $file_url URL of the file to download
      * @param array $attachment_data Optional attachment data
      * @return int|WP_Error Attachment ID or error
      */
     private function upload_media($file_url, $attachment_data = array()) {
         if (empty($file_url)) {
+            $this->logger->error('No file URL provided for media upload');
             return new WP_Error('empty_url', 'No file URL provided');
         }
 
         // Validate URL
         if (!filter_var($file_url, FILTER_VALIDATE_URL)) {
+            $this->logger->error('Invalid file URL provided for media upload', array('url' => $file_url));
             return new WP_Error('invalid_url', 'Invalid file URL');
         }
+        
+        $this->logger->debug('Starting media upload', array('url' => $file_url));
 
         require_once(ABSPATH . 'wp-admin/includes/media.php');
         require_once(ABSPATH . 'wp-admin/includes/file.php');
@@ -467,6 +474,7 @@ class JSON_Post_Creator {
         
         // Check for download errors
         if (is_wp_error($file_array['tmp_name'])) {
+            $this->logger->log_media_import($file_url, null, $file_array['tmp_name']->get_error_message());
             return $file_array['tmp_name'];
         }
         
@@ -484,45 +492,13 @@ class JSON_Post_Creator {
         // Clean up temp file
         @unlink($file_array['tmp_name']);
         
+        if (is_wp_error($attachment_id)) {
+            $this->logger->log_media_import($file_url, null, $attachment_id->get_error_message());
+        } else {
+            $this->logger->log_media_import($file_url, $attachment_id);
+        }
+        
         return $attachment_id;
-    }
-    
-    /**
-     * Activate the plugin
-     */
-    public static function activate() {
-        // Add any activation code here
-        flush_rewrite_rules();
-    }
-    
-    /**
-     * Deactivate the plugin
-     */
-    public static function deactivate() {
-        // Add any deactivation code here
-        flush_rewrite_rules();
-    }
-        $filetype = wp_check_filetype(basename($image_url));
-        if (!in_array($filetype['type'], ['image/jpeg', 'image/png', 'image/gif', 'image/webp'])) {
-            @unlink($tmp);
-            return new WP_Error('invalid_file_type', 'The uploaded file is not a valid image');
-        }
-
-        // Prepare file name
-        $file_array = array(
-            'name' => sanitize_file_name(basename($image_url)),
-            'tmp_name' => $tmp
-        );
-
-        // Upload the image
-        $id = media_handle_sideload($file_array, 0);
-
-        // Clean up temp file
-        if (file_exists($tmp)) {
-            @unlink($tmp);
-        }
-
-        return $id;
     }
 
     /**

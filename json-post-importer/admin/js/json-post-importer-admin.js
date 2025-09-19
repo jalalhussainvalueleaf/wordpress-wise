@@ -1,1221 +1,1475 @@
-/**
- * JSON Post Importer Admin JS
- * Handles AJAX file uploads, preview, and user feedback
- */
-
-jQuery(document).ready(function($) {
+(function($) {
     'use strict';
-    
-    // Cache DOM elements
-    var $form = $('#jpi-upload-form');
-    var $fileInput = $('#json-file');
-    var $fileInfo = $('#jpi-file-info');
-    var $submitBtn = $('#jpi-submit');
-    var $previewBtn = $('#jpi-preview-btn');
-    var $spinner = $('#jpi-upload-spinner');
-    var $messageContainer = $('#jpi-message');
-    var $previewSection = $('#jpi-preview-section');
-    var $previewContent = $('#jpi-preview-content');
-    var $previewError = $('#jpi-preview-error');
-    var $previewLoading = $('#jpi-preview-loading');
-    var $dropZone = $('#jpi-drop-zone');
-    var $cancelPreviewBtn = $('#jpi-cancel-preview');
-    var $confirmImportBtn = $('#jpi-confirm-import');
-    var $fieldMappings = $('#jpi-field-mappings');
-    var $importOptions = $('#jpi-import-options');
-    var $errorDetails = $('#jpi-error-details');
-    
-    // State
-    var currentFile = null;
-    
-    // Initialize the file input and drag-drop
-    initFileInput();
-    initFormSubmission();
-    initDismissibleNotices();
-    initPreviewHandlers();
-    
-    // Initialize import options
-    initImportOptions();
-    
+
+    // Global variables
+    var $form, $fileInput, $fileInfo, $submitBtn, $previewBtn, $spinner, $messageContainer, 
+        $previewSection, $previewContent, $previewError, $previewLoading, $dropZone, 
+        $cancelPreviewBtn, $importButtons, $fieldMappings, $importOptions, $errorDetails, 
+        $progressBar, currentFile, currentJsonData = null;
+
+    // Initialize the plugin when the document is ready
+    $(document).ready(function() {
+        console.log('JSON Post Importer: Initializing...');
+        
+        // Cache DOM elements
+        initDOMElements();
+        
+        // Initialize all components
+        initComponents();
+        
+        console.log('JSON Post Importer: Initialization complete');
+    });
+
     /**
-     * Initialize import options
+     * Initialize DOM elements
      */
-    function initImportOptions() {
-        // Set default post type and status
-        if (jpi_vars.default_post_type) {
-            $('#jpi-post-type').val(jpi_vars.default_post_type);
-        }
+    function initDOMElements() {
+        $form = $('#jpi-upload-form');
+        $fileInput = $('#jpi-json-file');
+        $fileInfo = $('#jpi-file-info');
+        $submitBtn = $('#jpi-submit');
+        $previewBtn = $('#jpi-preview-btn');
+        $spinner = $('#jpi-upload-spinner');
+        $messageContainer = $('#jpi-message');
+        $previewSection = $('#jpi-modal-wrap');
+        $previewContent = $('#jpi-json-content');
+        $previewError = $('#jpi-preview-error');
+        $previewLoading = $('#jpi-preview-loading');
+        $dropZone = $('#jpi-drop-zone');
+        $cancelPreviewBtn = $('#jpi-cancel-preview');
+        $importButtons = $('.jpi-import-button');
+        $fieldMappings = $('#jpi-field-mapping-container');
+        $importOptions = $('#jpi-import-options');
+        $errorDetails = $('#jpi-error-details');
+        $progressBar = $('<div class="jpi-upload-progress"><div class="jpi-progress-bar"></div><div class="jpi-progress-text">0%</div></div>');
         
-        if (jpi_vars.default_post_status) {
-            $('#jpi-post-status').val(jpi_vars.default_post_status);
-        }
+        console.log('DOM elements cached:', {
+            form: $form.length,
+            fileInput: $fileInput.length,
+            previewBtn: $previewBtn.length,
+            importButtons: $importButtons.length,
+            modal: $previewSection.length,
+            fieldMappings: $fieldMappings.length
+        });
     }
-    
-    // Initialize browse files button
-    $('#jpi-browse-files').on('click', function(e) {
-        e.preventDefault();
-        $fileInput.trigger('click');
-    });
-    
-    // Handle file selection
-    $fileInput.on('change', function(e) {
-        var file = e.target.files[0];
-        if (file) {
-            handleFileSelection(file);
-        }
-    });
-    
-    // Handle drag and drop
-    if ($dropZone.length) {
-        var dropZone = $dropZone[0];
-        
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(function(eventName) {
-            dropZone.addEventListener(eventName, preventDefaults, false);
-        });
-        
-        ['dragenter', 'dragover'].forEach(function(eventName) {
-            dropZone.addEventListener(eventName, highlight, false);
-        });
-        
-        ['dragleave', 'drop'].forEach(function(eventName) {
-            dropZone.addEventListener(eventName, unhighlight, false);
-        });
-        
-        dropZone.addEventListener('drop', handleDrop, false);
-    }
-    
-    // Handle form submission
-    $form.on('submit', function(e) {
-        e.preventDefault();
-        return false;
-    });
-    
-    // Handle preview button click
-    $previewBtn.on('click', function(e) {
-        e.preventDefault();
-        if (currentFile) {
-            previewFile(currentFile);
-        }
-        return false;
-    });
-    
-    // Handle import button click
-    $submitBtn.on('click', function(e) {
-        e.preventDefault();
-        if (currentFile) {
-            uploadFile(currentFile);
-        }
-        return false;
-    });
-    
-    // Handle cancel preview button
-    $cancelPreviewBtn.on('click', function(e) {
-        e.preventDefault();
-        resetPreview();
-    });
-    
-    // Handle confirm import button click
-    $confirmImportBtn.on('click', function(e) {
-        e.preventDefault();
-        startImport();
-    });
-    
+
     /**
-     * Reset the preview section
+     * Initialize all components
      */
-    function resetPreview() {
-        $previewSection.slideUp();
-        $previewContent.empty();
-        $previewError.hide();
-        $importOptions.hide();
-        $fieldMappings.hide();
-        $errorDetails.hide();
-        $fileInput.val('');
-        currentFile = null;
-        resetUploadState();
+    function initComponents() {
+        initTabs();
+        initFileInput();
+        initFormSubmission();
+        initPreviewHandlers();
+        initImportOptions();
+        initDismissibleNotices();
+        initModalHandlers();
+        initPreviewUI();
+        initHistoryAndLogs();
     }
-    
+
     /**
-     * Start the import process
+     * Initialize tab navigation
      */
-    function startImport() {
-        // Get field mappings and import options
-        var fieldMappings = getFieldMappings();
-        var importOptions = {
-            update_existing: $('#jpi-update-existing').is(':checked'),
-            import_images: $('#jpi-import-images').is(':checked'),
-            create_terms: $('#jpi-create-terms').is(':checked'),
-            post_status: $('#jpi-post-status').val(),
-            post_type: $('#jpi-post-type').val()
-        };
-        
-        // Get the JSON data from the hidden field
-        var jsonData = $('#jpi-json-data').val();
-        
-        if (!jsonData) {
-            showMessage('error', 'No JSON data found. Please upload a file first.');
-            return;
-        }
-        
-        // Validate required fields are mapped
-        var requiredFields = ['post_title'];
-        var missingFields = [];
-        
-        requiredFields.forEach(function(field) {
-            var isMapped = Object.keys(fieldMappings).some(function(key) {
-                return fieldMappings[key].wp_field === field;
-            });
+    function initTabs() {
+        // Modal tab navigation
+        $(document).on('click', '.jpi-tab-link', function(e) {
+            e.preventDefault();
+            var target = $(this).attr('href');
             
-            if (!isMapped) {
-                missingFields.push(field);
+            $('.jpi-tab-link').removeClass('active');
+            $('.jpi-tab-pane').removeClass('active');
+            $(this).addClass('active');
+            $(target).addClass('active');
+            
+            // Initialize field mapping when mapping tab is clicked
+            if (target === '#jpi-tab-mapping' && window.currentJsonData) {
+                setTimeout(function() {
+                    initFieldMapping(window.currentJsonData);
+                }, 100);
+            }
+            
+            console.log('Tab switched to:', target);
+        });
+    }
+
+    /**
+     * Initialize file input and drag-drop functionality
+     */
+    function initFileInput() {
+        // Browse files button
+        $('.jpi-browse-files').on('click', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $fileInput.trigger('click');
+        });
+
+        // File input change handler
+        $fileInput.on('change', function() {
+            handleFileSelection(this.files[0]);
+        });
+
+        // Drag and drop handlers
+        $dropZone.on('dragover', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).addClass('drag-over');
+        });
+
+        $dropZone.on('dragleave', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).removeClass('drag-over');
+        });
+
+        $dropZone.on('drop', function(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            $(this).removeClass('drag-over');
+            
+            var files = e.originalEvent.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelection(files[0]);
             }
         });
-        
-        if (missingFields.length > 0) {
-            showMessage(
-                'error',
-                'Required fields are not mapped: ' + missingFields.join(', '),
-                'Please map all required fields before importing.'
-            );
-            return;
-        }
-        
-        // Show loading state
-        setImportingState(true);
-        $errorDetails.hide().empty();
-        
-        // Prepare the data to send
-        var formData = new FormData();
-        formData.append('action', 'jpi_import_content');
-        formData.append('security', jpi_vars.import_nonce);
-        formData.append('field_mappings', JSON.stringify(fieldMappings));
-        formData.append('import_options', JSON.stringify(importOptions));
-        formData.append('json_data', jsonData);
-        
-        // Show progress indicator
-        var $progress = $('<div class="jpi-import-progress">' +
-            '<div class="jpi-progress-bar"><div class="jpi-progress-bar-fill"></div></div>' +
-            '<div class="jpi-progress-text">Preparing import...</div>' +
-            '</div>');
-            
-        $previewContent.before($progress);
-        
-        // Make the AJAX request
-        $.ajax({
-            url: jpi_vars.ajax_url,
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            dataType: 'json',
-            timeout: 300000, // 5 minutes
-            xhr: function() {
-                const xhr = new window.XMLHttpRequest();
 
-                // Upload progress
-                xhr.upload.addEventListener('progress', function(e) {
-                    if (e.lengthComputable) {
-                        const percentComplete = Math.round((e.loaded / e.total) * 100);
-                        $progress.find('.jpi-progress-bar-fill').css('width', percentComplete + '%');
-                        $progress.find('.jpi-progress-text').text(`Uploading: ${percentComplete}%`);
-                    }
-                }, false);
-
-                // Download progress
-                xhr.addEventListener('progress', function(e) {
-                    if (e.lengthComputable) {
-                        $progress.find('.jpi-progress-text').text('Processing import...');
-                    }
-                }, false);
-
-                return xhr;
-            },
-            success: function(response) {
-                if (response.success) {
-                    // Show success message
-                    showMessage('success', 'Import completed successfully!');
-
-                    // Show import results
-                    if (response.data && response.data.stats) {
-                        var stats = response.data.stats;
-                        var message = 'Imported: ' + (stats.imported || 0) + ' items\n';
-                        message += 'Updated: ' + (stats.updated || 0) + ' items\n';
-                        message += 'Skipped: ' + (stats.skipped || 0) + ' items';
-
-                        if (stats.errors && stats.errors.length > 0) {
-                            message += '\n\n' + stats.errors.length + ' errors occurred during import.';
-                        }
-
-                        showMessage('info', 'Import Results', message);
-                    }
-
-                    // Show error details if any
-                    if (response.data && response.data.errors && response.data.errors.length > 0) {
-                        var $errorList = $('<ul></ul>');
-                        response.data.errors.forEach(function(error) {
-                            $errorList.append($('<li></li>').text(error));
-                        });
-                        $errorDetails.html('<h4>Some items could not be imported:</h4>').append($errorList).show();
-                    }
-
-                    // Reset the form after a short delay
-                    setTimeout(function() {
-                        resetPreview();
-                        resetForm();
-
-                        // Refresh the page to show new content
-                        window.location.reload();
-                    }, 3000);
-                } else {
-                    // Handle server-side validation errors
-                    var errorMessage = 'An unknown error occurred during import.';
-                    
-                    if (response.data && response.data.message) {
-                        errorMessage = response.data.message;
-                    }
-                    
-                    if (response.data && response.data.errors) {
-                        errorMessage += '\n\n' + response.data.errors.join('\n');
-                    }
-                    
-                    showMessage('error', errorMessage);
-                    
-                    // Show detailed error if available
-                    if (response.data && response.data.debug) {
-                        $errorDetails.html('<pre>' + JSON.stringify(response.data.debug, null, 2) + '</pre>').show();
-                    }
-                }
-            },
-            error: function(xhr, status, error) {
-                var errorMessage = 'An error occurred during the import process. ';
-                
-                if (status === 'timeout') {
-                    errorMessage += 'The request timed out. The server may be processing a large amount of data.';
-                } else if (xhr.responseJSON && xhr.responseJSON.data && xhr.responseJSON.data.message) {
-                    errorMessage = xhr.responseJSON.data.message;
-                } else if (xhr.responseText) {
-                    try {
-                        var response = JSON.parse(xhr.responseText);
-                        errorMessage = response.data && response.data.message 
-                            ? response.data.message 
-                            : errorMessage;
-                    } catch (e) {
-                        errorMessage += 'Please try again or check your server error logs.';
-                    }
-                }
-                
-                showMessage('error', errorMessage);
-                $progress.find('.jpi-progress-bar-fill').css('background-color', '#dc3232');
-                $progress.find('.jpi-progress-text').text('Import failed');
-            },
-            complete: function() {
-                setImportingState(false);
+        // Drop zone click handler
+        $dropZone.on('click', function(e) {
+            if (e.target === this || $(e.target).hasClass('jpi-drop-zone-content')) {
+                $fileInput.trigger('click');
             }
         });
     }
-    
-    /**
-     * Handle import error
-     */
-    function handleImportError(error) {
-        var errorMessage = 'An error occurred during import.';
-        
-        if (typeof error === 'string') {
-            errorMessage = error;
-        } else if (error && error.message) {
-            errorMessage = error.message;
-        }
-        
-        showMessage('error', errorMessage);
-        
-        if (error && error.debug) {
-            console.error('Import Error:', error.debug);
-        }
-    }
-    
-    /**
-     * Set importing state
-     */
-    function setImportingState(isImporting) {
-        if (isImporting) {
-            $submitBtn.prop('disabled', true).text('Importing...');
-            $previewBtn.prop('disabled', true);
-            $confirmImportBtn.prop('disabled', true);
-            $spinner.show();
-        } else {
-            $submitBtn.prop('disabled', false).text('Upload');
-            $previewBtn.prop('disabled', false);
-            $confirmImportBtn.prop('disabled', false);
-            $spinner.hide();
-        }
-    }
-    
-    /**
-     * Show a message to the user
-     * 
-     * @param {string} type Message type (success, error, warning, info)
-     * @param {string} message The message to display
-     * @param {string} details Optional details to display
-     */
-    function showMessage(type, message, details) {
-        // Clear any existing messages
-        $messageContainer.empty();
-        
-        // Create message element
-        var $message = $('<div>').addClass('notice notice-' + type + ' is-dismissible');
-        $message.append($('<p>').text(message));
-        
-        // Add details if provided
-        if (details) {
-            $message.append($('<p>').addClass('description').text(details));
-        }
-        
-        // Add dismiss button
-        $message.append($('<button>').attr('type', 'button').addClass('notice-dismiss')
-            .append($('<span>').addClass('screen-reader-text').text('Dismiss this notice.')));
-        
-        // Add to container and fade in
-        $messageContainer.html($message).hide().fadeIn();
-        
-        // Auto-hide after 10 seconds for success messages
-        if (type === 'success') {
-            setTimeout(function() {
-                $message.fadeOut();
-            }, 10000);
-        }
-    }
-    
-    /**
-     * Show preview error message
-     */
-    function showPreviewError(message) {
-        $previewError.html('<p>' + message + '</p>').show();
-        $previewLoading.hide();
-        $previewContent.hide();
-        
-        // Also show in the main message container
-        showMessage('error', 'Preview Error: ' + message);
-    }
-    
+
     /**
      * Handle file selection
      */
     function handleFileSelection(file) {
-        if (validateFile(file)) {
-            currentFile = file;
-            updateFileInfo(file);
-            toggleButtons(true);
-        } else {
-            resetUploadState();
+        if (!file) {
+            resetFileInput();
+            return;
         }
+
+        // Validate file type
+        var isValidFile = (file.type === 'application/json' || file.name.toLowerCase().endsWith('.json'));
+        
+        if (!isValidFile) {
+            showMessage('error', 'Please select a valid JSON file.');
+            resetFileInput();
+            return;
+        }
+
+        // Update UI
+        currentFile = file;
+        $fileInfo.text(file.name + ' (' + formatFileSize(file.size) + ')').show();
+        $previewBtn.prop('disabled', false).addClass('button-primary');
+        
+        console.log('File selected:', file.name, file.size, 'bytes');
     }
 
     /**
-     * Initialize file input handling
+     * Reset file input
      */
-    function initFileInput() {
-        // Handle file selection
-        $fileInput.on('change', function() {
-            const file = this.files[0];
-            if (file) {
-                updateFileInfo(file);
-                currentFile = file;
-                toggleButtons(true);
-            }
-        });
-        
-        // Prevent default drag behaviors
-        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
-            $dropZone.on(eventName, preventDefaults);
-            $(document.body).on(eventName, preventDefaults);
-        });
-        
-        // Highlight drop zone when item is dragged over it
-        ['dragenter', 'dragover'].forEach(eventName => {
-            $dropZone.on(eventName, highlight);
-        });
-        
-        ['dragleave', 'drop'].forEach(eventName => {
-            $dropZone.on(eventName, unhighlight);
-        });
-        
-        // Handle dropped files
-        $dropZone.on('drop', handleDrop);
+    function resetFileInput() {
+        $fileInput.val('');
+        $fileInfo.text('').hide();
+        $previewBtn.prop('disabled', true).removeClass('button-primary');
+        currentFile = null;
+        resetPreview();
     }
-    
+
     /**
-     * Initialize form submission
+     * Initialize form submission handlers
      */
     function initFormSubmission() {
+        // Main upload form
         $form.on('submit', function(e) {
             e.preventDefault();
             
-            const file = $fileInput[0].files[0];
-            const validation = validateFile(file);
-            
-            if (validation.isValid) {
-                uploadFile(file);
-            } else {
-                showMessage(validation.message, 'error');
+            if (!currentFile) {
+                showMessage('error', 'Please select a file to upload.');
+                return;
             }
+            
+            processFileForPreview(currentFile);
         });
     }
-    
-    /**
-     * Validate the selected file
-     */
-    function validateFile(file) {
-        // Check if file exists
-        if (!file) {
-            return {
-                isValid: false,
-                message: jpi_vars.i18n.no_file_selected
-            };
-        }
-        
-        // Check file type
-        const isValidType = file.type === 'application/json' || 
-                          file.name.toLowerCase().endsWith('.json');
-        
-        if (!isValidType) {
-            return {
-                isValid: false,
-                message: jpi_vars.i18n.invalid_file_type
-            };
-        }
-        
-        // Check file size
-        if (file.size > jpi_vars.max_upload_size_bytes) {
-            return {
-                isValid: false,
-                message: jpi_vars.i18n.file_too_large.replace('%s', jpi_vars.max_upload_size)
-            };
-        }
-        
-        return { isValid: true };
-    }
-    
+
     /**
      * Initialize preview handlers
      */
     function initPreviewHandlers() {
-        // Handle field mapping changes
-        $(document).on('change', '.jpi-field-select', function() {
-            const $field = $(this);
-            const fieldName = $field.data('field');
-            const selectedValue = $field.val();
+        // Preview button click
+        $previewBtn.on('click', function(e) {
+            e.preventDefault();
             
-            // Show/hide custom field name input
-            if (selectedValue === 'custom_field') {
-                $field.closest('td').find('.custom-field-name').show();
-            } else {
-                $field.closest('td').find('.custom-field-name').hide();
+            if (!currentFile) {
+                showMessage('error', 'Please select a file first.');
+                return;
+            }
+
+            processFileForPreview(currentFile);
+        });
+
+        // Cancel preview button
+        $cancelPreviewBtn.on('click', function(e) {
+            e.preventDefault();
+            closeModal();
+            resetPreview();
+        });
+
+        // Import button handler using event delegation
+        $(document).on('click', '.jpi-import-button', function(e) {
+            e.preventDefault();
+            
+            if ($(this).prop('disabled')) {
+                return false;
             }
             
-            updateFieldMappings();
+            handleImportClick();
         });
-        
-        // Handle custom field name changes
-        $(document).on('input', '.custom-field-name input', function() {
-            updateFieldMappings();
-        });
-    }
-    
-    /**
-     * Preview the selected file
-     */
-    function previewFile(file) {
-        if (!file) {
-            console.error('No file provided to preview');
-            return;
-        }
-        
-        // Check if file is JSON
-        const isJsonFile = file.type === 'application/json' || file.name.toLowerCase().endsWith('.json');
-        if (!isJsonFile) {
-            const errorMsg = `Invalid file type: ${file.type}. Please upload a JSON file.`;
-            console.error(errorMsg);
-            showMessage('error', jpi_vars.i18n.invalid_file_type);
-            return;
-        }
-        
-        console.log('Reading file:', file.name, 'Size:', file.size, 'bytes');
-        
-        // Show loading state
-        $previewSection.show();
-        $previewError.hide();
-        $previewContent.hide();
-        $previewLoading.show();
-        
-        // Update progress UI
-        updateProgress(0, 'Reading file...');
-        
-        // Read file content
-        const reader = new FileReader();
-        const fileSize = file.size;
-        let loaded = 0;
-        
-        // Progress tracking
-        reader.onprogress = function(e) {
-            if (e.lengthComputable) {
-                loaded = e.loaded;
-                const percentComplete = Math.round((loaded / fileSize) * 50); // First 50% for loading
-                updateProgress(percentComplete, 'Processing file...');
-            }
-        };
-        
-        reader.onloadstart = function() {
-            updateProgress(0, 'Starting file read...');
-        };
-        
-        reader.onload = function(e) {
-            updateProgress(60, 'Parsing JSON data...');
-            console.log('File read successfully, parsing JSON...');
-            
-            // Log the raw response for debugging
-            console.log('Raw file content (first 500 chars):', e.target.result.substring(0, 500));
-            
-            // Simulate processing delay for better UX
-            setTimeout(function() {
-                try {
-                    // Try to parse the JSON
-                    const jsonData = JSON.parse(e.target.result);
-                    console.log('JSON parsed successfully:', jsonData);
-                    
-                    updateProgress(90, 'Generating preview...');
-                    
-                    // Small delay to show 100% before hiding the loader
-                    setTimeout(function() {
-                        updateProgress(100, 'Preview ready!');
-                        setTimeout(function() {
-                            $previewLoading.hide();
-                            previewJsonData(jsonData);
-                            $previewContent.fadeIn();
-                        }, 300);
-                    }, 500);
-                    
-                } catch (e) {
-                    console.error('Error parsing JSON:', e);
-                    console.error('Raw response that caused error:', e.target.result);
-                    
-                    // Try to find where the error might be
-                    try {
-                        // Try to find the line number where the error occurred
-                        const errorLine = e.message.match(/position\s(\d+)/);
-                        if (errorLine && errorLine[1]) {
-                            const errorPos = parseInt(errorLine[1]);
-                            const start = Math.max(0, errorPos - 50);
-                            const end = Math.min(e.target.result.length, errorPos + 50);
-                            console.error('Error context:', e.target.result.substring(start, end));
-                        }
-                    } catch (logError) {
-                        console.error('Could not extract error context:', logError);
-                    }
-                    
-                    showPreviewError('Invalid JSON: ' + e.message + ' (check browser console for details)');
-                }
-            }, 300);
-        };
-        
-        reader.onerror = function(error) {
-            console.error('Error reading file:', error);
-            showPreviewError(jpi_vars.i18n.file_read_error);
-        };
-        
-        reader.onabort = function() {
-            console.warn('File reading was aborted');
-            showPreviewError('File reading was cancelled');
-        };
-        
-        reader.readAsText(file);
-        
-        // Helper function to update progress
-        function updateProgress(percent, status) {
-            $('.jpi-progress-bar-fill').css('width', percent + '%');
-            $('.jpi-progress-percentage').text(percent + '%');
-            $('.jpi-progress-status').text(status);
-            
-            if (percent >= 100) {
-                $('.jpi-progress-text').text('Preview ready!');
-            }
-        }
-    }
-    
-    /**
-     * Preview JSON data
-     */
-    function previewJsonData(jsonData) {
-        console.log('Sending JSON data for preview...');
-        
-        // Validate JSON data
-        if (!jsonData) {
-            console.error('No JSON data to preview');
-            showPreviewError('No data to preview');
-            return;
-        }
-        
-        // Stringify with error handling
-        let jsonString;
-        try {
-            jsonString = JSON.stringify(jsonData);
-            console.log('JSON string length:', jsonString.length, 'characters');
-        } catch (e) {
-            console.error('Error stringifying JSON:', e);
-            showPreviewError('Error preparing data for preview: ' + e.message);
-            return;
-        }
-        
-        // Show loading state
-        $previewLoading.show();
-        $previewSection.hide();
-        $previewError.hide();
-        
-        // Create form data for the request
-        const formData = new FormData();
-        formData.append('action', 'jpi_preview_json');
-        formData.append('security', jpi_vars.nonce);
-        formData.append('json_data', jsonString);
-        
-        console.log('Sending AJAX request to:', jpi_vars.ajax_url);
-        console.log('Request data:', {
-            action: 'jpi_preview_json',
-            security: '***', // Don't log the actual nonce
-            json_data_length: jsonString.length
-        });
-        
-        // Add debug headers
-        const headers = {
-            'X-Requested-With': 'XMLHttpRequest',
-            'X-JPI-Debug': '1',
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-        };
-        
-        // Send to server for processing and preview
-        $.ajax({
-            url: jpi_vars.ajax_url,
-            type: 'POST',
-            data: formData,
-            processData: false, // Don't process the data
-            contentType: false, // Let the browser set the content type
-            dataType: 'json',
-            headers: headers,
-            cache: false,
-            timeout: 30000, // 30 second timeout
-            success: function(response, status, xhr) {
-                console.log('AJAX success:', response);
-                
-                // Check if the response is valid and successful
-                if (response && response.success) {
-                    // Handle successful response
-                    if (response.data && response.data.preview_html) {
-                        $previewContent.html(response.data.preview_html);
-                        $previewSection.show();
-                        $previewLoading.hide();
-                        $submitBtn.prop('disabled', false);
-                        
-                        // Initialize any UI components in the preview
-                        if (typeof initPreviewUI === 'function') {
-                            initPreviewUI();
-                        }
-                    } else {
-                        console.error('Preview data missing or invalid:', response);
-                        showPreviewError('Preview data is missing or invalid. Check console for details.');
-                    }
-                } else {
-                    // Handle error response
-                    const errorMsg = (response && response.data && response.data.message) || 
-                                   (response && response.message) || 
-                                   jpi_vars.i18n.preview_error;
-                    console.error('Preview error:', errorMsg, response);
-                    showPreviewError(errorMsg);
-                }
-            },
-            error: function(xhr, status, error) {
-                console.error('AJAX error:', status, error, xhr);
-                
-                let errorMsg = jpi_vars.i18n.preview_error;
-                let responseText = xhr.responseText || '';
-                
-                // Log the first 1000 characters of the response for debugging
-                console.log('Raw response (first 1000 chars):', responseText.substring(0, 1000));
-                
-                // Check if this is a WordPress login page (common cause of issues)
-                if (responseText.includes('wp-login.php') || responseText.includes('loginform')) {
-                    errorMsg = 'Your session has expired. Please refresh the page and log in again.';
-                }
-                
-                // Try to parse the response as JSON
-                try {
-                    const jsonResponse = JSON.parse(responseText);
-                    if (jsonResponse.data && jsonResponse.data.message) {
-                        errorMsg = jsonResponse.data.message;
-                    } else if (jsonResponse.message) {
-                        errorMsg = jsonResponse.message;
-                    }
-                } catch (e) {
-                    // If we can't parse as JSON, check for common HTML errors
-                    if (responseText.includes('loginform') || responseText.includes('wp-login.php')) {
-                        errorMsg = 'Session expired. Please refresh the page and log in again.';
-                    } else if (responseText.trim().startsWith('<')) {
-                        errorMsg = 'Received HTML instead of JSON. This might be a server configuration issue.';
-                    }
-                }
-                
-                if (status === 'timeout') {
-                    errorMsg = 'Request timed out. The server took too long to respond.';
-                } else if (status === 'error') {
-                    if (xhr.status === 0) {
-                        errorMsg = 'Network error. Please check your internet connection.';
-                    } else if (xhr.status === 403) {
-                        errorMsg = 'Permission denied. You may need to log in again.';
-                    } else if (xhr.status === 500) {
-                        errorMsg = 'Server error. Please check the server logs for more details.';
-                    } else {
-                        errorMsg = `Error (${xhr.status}): ${error}`;
-                    }
-                }
-                
-                showPreviewError(errorMsg);
-            }
-        });
-    }
-    
-    /**
-     * Show preview error
-     */
-    function showPreviewError(message) {
-        $previewLoading.hide();
-        $previewError.html(`<div class="notice notice-error"><p>${message}</p></div>`).show();
-        $previewSection.hide();
-        $submitBtn.prop('disabled', true);
     }
 
     /**
-     * Upload file via AJAX
+     * Initialize modal handlers
      */
-    function uploadFile(file) {
-        if (!file) return;
-        
-        const formData = new FormData($form[0]);
-        formData.append('action', 'jpi_handle_upload');
-        formData.append('nonce', jpi_vars.upload_nonce);
-        formData.append('json_file', file);
-        
-        // Add field mappings to form data
-        const fieldMappings = getFieldMappings();
-        formData.append('field_mappings', JSON.stringify(fieldMappings));
-        
-        setUploadingState(true);
-        
-        $.ajax({
-            url: jpi_vars.ajax_url,
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            dataType: 'json',
-            success: handleUploadSuccess,
-            error: handleUploadError,
-            complete: function() {
-                setUploadingState(false);
+    function initModalHandlers() {
+        // Modal close button
+        $('#jpi-modal-close').on('click', function(e) {
+            e.preventDefault();
+            closeModal();
+        });
+
+        // Modal backdrop click
+        $('#jpi-modal-backdrop').on('click', function(e) {
+            if (e.target === this) {
+                closeModal();
+            }
+        });
+
+        // Escape key to close modal
+        $(document).on('keydown', function(e) {
+            if (e.keyCode === 27 && $('#jpi-modal-wrap').is(':visible')) {
+                closeModal();
             }
         });
     }
-    
+
     /**
-     * Get all field mappings from the form
+     * Initialize import options
      */
-    function getFieldMappings() {
-        const mappings = {};
-        
-        $('.jpi-field-mapping').each(function() {
-            const $row = $(this);
-            const jsonField = $row.data('field');
-            const $select = $row.find('.jpi-field-select');
-            const selectedField = $select.val();
-            
-            if (selectedField) {
-                if (selectedField === 'custom_field') {
-                    const customFieldName = $row.find('.custom-field-name input').val().trim();
-                    if (customFieldName) {
-                        mappings[jsonField] = {
-                            type: 'custom_field',
-                            name: customFieldName
-                        };
-                    }
-                } else {
-                    mappings[jsonField] = {
-                        type: 'post_field',
-                        name: selectedField
-                    };
-                }
+    function initImportOptions() {
+        // Set default values if available
+        if (typeof jpi_vars !== 'undefined') {
+            if (jpi_vars.default_post_type) {
+                $('#jpi-post-type').val(jpi_vars.default_post_type);
             }
-        });
-        
-        return mappings;
-    }
-    
-    /**
-     * Update hidden field with current field mappings
-     */
-    function updateFieldMappings() {
-        const mappings = getFieldMappings();
-        $fieldMappings.val(JSON.stringify(mappings));
-    }
-    
-    /**
-     * Toggle buttons based on file selection
-     */
-    function toggleButtons(enable) {
-        $previewBtn.prop('disabled', !enable);
-        $submitBtn.prop('disabled', !enable);
-    }
-    
-    /**
-     * Handle successful upload
-     */
-    function handleUploadSuccess(response) {
-        if (response.success) {
-            // Show success message
-            showMessage(response.data.message, 'success');
-            
-            // Show preview if data is available
-            if (response.data.preview_html) {
-                $previewContent.html(response.data.preview_html);
-                
-                // Show import options and field mappings
-                $importOptions.slideDown();
-                
-                // Initialize field mappings if available
-                if (response.data.field_mappings) {
-                    initFieldMappings(response.data.field_mappings);
-                }
-                
-                $fieldMappings.slideDown();
-                
-                // Show preview section
-                $previewSection.slideDown();
-                
-                // Scroll to preview
-                $('html, body').animate({
-                    scrollTop: $previewSection.offset().top - 100
-                }, 500);
-                
-                // Store JSON data in a hidden field for import
-                if (response.data.json_data) {
-                    $('<input>').attr({
-                        type: 'hidden',
-                        id: 'jpi-json-data',
-                        name: 'jpi_json_data',
-                        value: JSON.stringify(response.data.json_data)
-                    }).appendTo('body');
-                }
-            }
-            $previewSection.slideUp();
-            
-            // Redirect or refresh the page to show the success message
-            window.location.href = addQueryParam(window.location.href, 'jpi_message', 'import_success');
-        } else {
-            showMessage(response.data && response.data.message ? response.data.message : jpi_vars.i18n.upload_error, 'error');
-        }
-    }
-    
-    /**
-     * Initialize field mappings in the UI
-     */
-    function initFieldMappings(mappings) {
-        const $container = $('#jpi-field-mappings-container');
-        $container.empty();
-        
-        if (!mappings || !Array.isArray(mappings) || mappings.length === 0) {
-            $container.html('<p>No field mappings available. All fields will be imported as post meta.</p>');
-            return;
-        }
-        
-        const $table = $('<table class="wp-list-table widefat fixed striped"></table>');
-        const $thead = $('<thead><tr><th>JSON Field</th><th>Map to</th></tr></thead>');
-        const $tbody = $('<tbody></tbody>');
-        
-        // Standard WordPress fields
-        const wpFields = [
-            { value: 'post_title', label: 'Post Title' },
-            { value: 'post_content', label: 'Post Content' },
-            { value: 'post_excerpt', label: 'Post Excerpt' },
-            { value: 'post_status', label: 'Post Status' },
-            { value: 'post_date', label: 'Post Date' },
-            { value: 'post_author', label: 'Post Author' },
-            { value: 'post_name', label: 'Post Slug' },
-            { value: 'menu_order', label: 'Menu Order' },
-            { value: 'comment_status', label: 'Comment Status' },
-            { value: 'ping_status', label: 'Ping Status' },
-            { value: 'post_password', label: 'Post Password' },
-            { value: 'post_parent', label: 'Post Parent' },
-            { value: 'post_mime_type', label: 'MIME Type' },
-            { value: 'post_type', label: 'Post Type' },
-            { value: 'featured_image', label: 'Featured Image' },
-            { value: 'post_category', label: 'Categories' },
-            { value: 'tags_input', label: 'Tags' }
-        ];
-        
-        // Add custom fields from the mappings
-        mappings.forEach(mapping => {
-            if (mapping.field && mapping.label) {
-                const $row = $('<tr></tr>');
-                
-                // Field name
-                $row.append($('<td>').text(mapping.label));
-                
-                // Field mapping select
-                const $select = $('<select>').attr({
-                    'name': `field_mapping[${mapping.field}]`,
-                    'class': 'jpi-field-mapping',
-                    'data-field': mapping.field
-                });
-                
-                // Add default option
-                $select.append($('<option>').val('').text('-- Select Field --'));
-                
-                // Add WordPress fields
-                const $wpFieldsGroup = $('<optgroup>').attr('label', 'WordPress Fields');
-                wpFields.forEach(field => {
-                    $wpFieldsGroup.append($('<option>').val(field.value).text(field.label));
-                });
-                $select.append($wpFieldsGroup);
-                
-                // Add custom fields option
-                const $customFieldsGroup = $('<optgroup>').attr('label', 'Custom Fields');
-                $customFieldsGroup.append($('<option>').val('meta:' + mapping.field).text('Custom Field (' + mapping.field + ')'));
-                
-                // Add taxonomies if available
-                if (jpi_vars.taxonomies && Object.keys(jpi_vars.taxonomies).length > 0) {
-                    const $taxGroup = $('<optgroup>').attr('label', 'Taxonomies');
-                    Object.entries(jpi_vars.taxonomies).forEach(([taxonomy, label]) => {
-                        $taxGroup.append($('<option>').val(`tax:${taxonomy}`).text(`${label} (Taxonomy)`));
-                    });
-                    $select.append($taxGroup);
-                }
-                
-                $select.append($customFieldsGroup);
-                
-                // Set default value if available
-                if (mapping.default_field) {
-                    $select.val(mapping.default_field);
-                }
-                
-                $row.append($('<td>').append($select));
-                $tbody.append($row);
-            }
-        });
-        
-        $table.append($thead).append($tbody);
-        $container.append($table);
-        
-        // Initialize select2 if available
-        if ($.fn.select2) {
-            $('.jpi-field-mapping').select2({
-                width: '100%',
-                placeholder: 'Select a field to map to...'
-            });
-        }
-    }
-    
-    /**
-     * Get all field mappings from the form
-     */
-    function getFieldMappings() {
-        const mappings = {};
-        
-        $('.jpi-field-mapping').each(function() {
-            const field = $(this).data('field');
-            const value = $(this).val();
-            
-            if (field && value) {
-                mappings[field] = value;
-            }
-        });
-        
-        return mappings;
-    }
-    
-    /**
-     * Handle upload errors
-     */
-    function handleUploadError(xhr, status, error) {
-        console.error('Upload error:', {xhr, status, error, response: xhr.responseJSON});
-        
-        let errorMessage = 'An error occurred while uploading the file. Please try again.';
-        
-        try {
-            // Try to parse the response as JSON
-            const response = xhr.responseJSON || JSON.parse(xhr.responseText);
-            
-            if (response && response.data && response.data.message) {
-                errorMessage = response.data.message;
-            } else if (response && response.message) {
-                errorMessage = response.message;
-            }
-        } catch (e) {
-            // If we can't parse as JSON, try to get a useful error message
-            if (xhr.status === 403) {
-                errorMessage = 'Permission denied. Please ensure you are logged in and have the correct permissions.';
-            } else if (xhr.status === 0) {
-                errorMessage = 'Network error. Please check your internet connection and try again.';
-            } else if (xhr.status === 413) {
-                errorMessage = 'File is too large. Please try a smaller file or increase your server\'s upload limit.';
-            } else if (xhr.responseText) {
-                errorMessage = xhr.responseText.substring(0, 200); // Limit length
+            if (jpi_vars.default_post_status) {
+                $('#jpi-post-status').val(jpi_vars.default_post_status);
             }
         }
-        
-        showMessage('error', 'Upload Failed', errorMessage);
-        setUploadingState(false);
     }
-    
-    /**
-     * Add query parameter to URL
-    ```
-    function addQueryParam(url, key, value) {
-        const separator = url.includes('?') ? '&' : '?';
-        return url + separator + encodeURIComponent(key) + '=' + encodeURIComponent(value);
-    }
-    
-    /**
-     * Prevent default drag behaviors
-     */
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-    
-    /**
-     * Highlight drop zone
-     */
-    function highlight() {
-        $dropZone.addClass('is-dragover');
-    }
-    
-    /**
-     * Unhighlight drop zone
-     */
-    function unhighlight() {
-        $dropZone.removeClass('is-dragover');
-    }
-    
-    /**
-     * Handle dropped files
-     */
-    function handleDrop(e) {
-        const dt = e.originalEvent.dataTransfer;
-        const files = dt.files;
-        
-        if (files.length) {
-            const file = files[0];
-            $fileInput[0].files = files;
-            updateFileInfo(file);
-            currentFile = file;
-            toggleButtons(true);
-        }
-    }
-    
-    /**
-     * Update the file info display
-     */
-    function updateFileInfo(file) {
-        if (!file) {
-            $fileInfo.text('No file selected');
-            $dropZone.removeClass('has-file');
-            return;
-        }
-        
-        const fileSize = (file.size / 1024 / 1024).toFixed(2);
-        $fileInfo.html(`
-            <strong>${file.name}</strong> (${fileSize} MB)
-        `);
-        $dropZone.addClass('has-file');
-    }
-    
-    /**
-     * Set uploading state
-     */
-    function setUploadingState(isUploading) {
-        if (isUploading) {
-            $submitBtn.prop('disabled', true);
-            $previewBtn.prop('disabled', true);
-            $confirmImportBtn.prop('disabled', true);
-            $spinner.addClass('is-active');
-        } else {
-            $submitBtn.prop('disabled', false);
-            $previewBtn.prop('disabled', false);
-            $spinner.removeClass('is-active');
-        }
-    }
-    
-    /**
-     * Reset upload state
-     */
-    function resetUploadState() {
-        $fileInput.val('');
-        updateFileInfo(null);
-        $previewSection.hide();
-        currentFile = null;
-        toggleButtons(false);
-    }
-    
-    /**
-     * Reset the form
-     */
-    function resetForm() {
-        $form.trigger('reset');
-        resetUploadState();
-        $previewContent.empty();
-    }
-    
+
     /**
      * Initialize dismissible notices
      */
     function initDismissibleNotices() {
-        $(document).on('click', '.notice-dismiss', function() {
-            $(this).closest('.notice').fadeOut('slow', function() {
-                $(this).remove();
+        $('.notice-dismiss').on('click', function() {
+            $(this).closest('.notice').fadeOut();
+        });
+    }
+
+    /**
+     * Initialize preview UI
+     */
+    function initPreviewUI() {
+        // Modal elements should already exist in the DOM
+        console.log('Preview UI initialized. Modal elements:', {
+            modal: $('#jpi-modal-wrap').length,
+            backdrop: $('#jpi-modal-backdrop').length,
+            content: $('#jpi-json-content').length
+        });
+    }
+
+    /**
+     * Process file for preview
+     */
+    function processFileForPreview(file) {
+        if (!file) {
+            showMessage('error', 'No file selected.');
+            return;
+        }
+
+        showLoading('Reading file...');
+        
+        var reader = new FileReader();
+        
+        reader.onload = function(e) {
+            try {
+                var jsonData = JSON.parse(e.target.result);
+                currentJsonData = jsonData;
+                
+                console.log('JSON parsed successfully:', jsonData);
+                
+                // Show modal with preview
+                showModal();
+                displayPreview(jsonData);
+                
+            } catch (error) {
+                console.error('JSON parsing error:', error);
+                showMessage('error', 'Invalid JSON file: ' + error.message);
+            } finally {
+                hideLoading();
+            }
+        };
+
+        reader.onerror = function() {
+            hideLoading();
+            showMessage('error', 'Error reading the file. Please try again.');
+        };
+
+        reader.readAsText(file);
+    }
+
+    /**
+     * Display JSON preview in modal
+     */
+    function displayPreview(jsonData) {
+        var $previewTab = $('#jpi-tab-preview');
+        var $jsonContent = $('#jpi-json-content');
+        
+        if (!$jsonContent.length) {
+            $jsonContent = $('<pre><code id="jpi-json-content"></code></pre>');
+            $previewTab.find('.jpi-json-preview').html($jsonContent);
+        }
+        
+        // Format and display JSON
+        var formattedJson = JSON.stringify(jsonData, null, 2);
+        $jsonContent.text(formattedJson);
+        
+        // Initialize field mapping
+        initFieldMapping(jsonData);
+        
+        // Show import options
+        $('#jpi-import-options').show();
+        
+        // Enable import button
+        $('.jpi-import-button').prop('disabled', false);
+        
+        console.log('Preview displayed successfully');
+    }
+
+    /**
+     * Initialize field mapping interface
+     */
+    function initFieldMapping(jsonData) {
+        var $mappingContainer = $('#jpi-field-mapping-container');
+        
+        if (!$mappingContainer.length) {
+            console.error('Field mapping container not found');
+            return;
+        }
+        
+        // Store JSON data globally for field mapping
+        window.currentJsonData = jsonData;
+        
+        // Clear any existing content
+        $mappingContainer.empty();
+        
+        // Trigger field mapping initialization from the field mapping module
+        if (typeof renderFieldMappingUI === 'function') {
+            renderFieldMappingUI(jsonData);
+            
+            // Setup real-time validation
+            if (typeof setupRealTimeValidation === 'function') {
+                setupRealTimeValidation();
+            }
+            
+            // Validate preview data and show issues
+            if (typeof validatePreviewData === 'function') {
+                var previewIssues = validatePreviewData(jsonData);
+                if (previewIssues.length > 0) {
+                    displayPreviewValidation(previewIssues);
+                }
+            }
+        } else {
+            // Fallback to basic field mapping
+            var availableFields = detectJsonFields(jsonData);
+            var mappingHtml = generateFieldMappingHTML(availableFields);
+            $mappingContainer.html(mappingHtml);
+        }
+        
+        console.log('Field mapping initialized with JSON data:', jsonData);
+    }
+    
+    /**
+     * Display preview validation issues
+     */
+    function displayPreviewValidation(issues) {
+        var errors = issues.filter(function(issue) { return issue.type === 'error'; });
+        var warnings = issues.filter(function(issue) { return issue.type === 'warning'; });
+        
+        var html = '<div class="jpi-preview-validation';
+        if (errors.length > 0) {
+            html += ' has-errors';
+        } else if (warnings.length > 0) {
+            html += ' has-warnings';
+        } else {
+            html += ' valid';
+        }
+        html += '">';
+        
+        if (errors.length > 0) {
+            html += '<h4><span class="dashicons dashicons-dismiss"></span>' + (jpi_vars.i18n.preview_errors || 'Preview Issues') + '</h4>';
+            html += '<ul>';
+            errors.forEach(function(error) {
+                html += '<li>' + error.message + '</li>';
             });
+            html += '</ul>';
+        }
+        
+        if (warnings.length > 0) {
+            html += '<h4><span class="dashicons dashicons-warning"></span>' + (jpi_vars.i18n.preview_warnings || 'Recommendations') + '</h4>';
+            html += '<ul>';
+            warnings.forEach(function(warning) {
+                html += '<li>' + warning.message + '</li>';
+            });
+            html += '</ul>';
+        }
+        
+        html += '</div>';
+        
+        // Insert after preview content or at the beginning of field mapping
+        var $target = $('#jpi-preview-content');
+        if ($target.length) {
+            $target.after(html);
+        } else {
+            $('#jpi-field-mapping-container').prepend(html);
+        }
+    }
+
+    /**
+     * Detect fields from JSON data
+     */
+    function detectJsonFields(jsonData) {
+        var fields = new Set();
+        
+        // Ensure we have an array to work with
+        var items = Array.isArray(jsonData) ? jsonData : [jsonData];
+        
+        // Analyze first few items to detect fields
+        items.slice(0, 5).forEach(function(item) {
+            if (typeof item === 'object' && item !== null) {
+                Object.keys(item).forEach(function(key) {
+                    fields.add(key);
+                });
+            }
+        });
+        
+        return Array.from(fields).sort();
+    }
+
+    /**
+     * Generate field mapping HTML
+     */
+    function generateFieldMappingHTML(availableFields) {
+        var html = '<div class="jpi-field-mapping-section">';
+        html += '<h4>Standard Fields</h4>';
+        html += '<table class="form-table">';
+        
+        // Standard WordPress fields
+        var standardFields = [
+            { key: 'post_title', label: 'Post Title', required: true },
+            { key: 'post_content', label: 'Post Content', required: false },
+            { key: 'post_excerpt', label: 'Post Excerpt', required: false },
+            { key: 'post_status', label: 'Post Status', required: false },
+            { key: 'post_date', label: 'Post Date', required: false }
+        ];
+        
+        standardFields.forEach(function(field) {
+            html += '<tr>';
+            html += '<th scope="row">' + field.label + (field.required ? ' *' : '') + '</th>';
+            html += '<td>';
+            html += '<select name="field_mapping[standard][' + field.key + ']" class="regular-text">';
+            html += '<option value="">-- Select Field --</option>';
+            
+            availableFields.forEach(function(jsonField) {
+                var selected = '';
+                var fieldLower = field.key.replace('post_', '').toLowerCase();
+                var jsonLower = jsonField.toLowerCase();
+                
+                // Auto-select likely matches
+                if (jsonLower === fieldLower || 
+                    (field.key === 'post_title' && (jsonLower === 'title' || jsonLower === 'name' || jsonLower === 'heading')) ||
+                    (field.key === 'post_content' && (jsonLower === 'content' || jsonLower === 'body' || jsonLower === 'text' || jsonLower === 'description')) ||
+                    (field.key === 'post_excerpt' && (jsonLower === 'excerpt' || jsonLower === 'summary' || jsonLower === 'abstract'))) {
+                    selected = ' selected';
+                }
+                
+                html += '<option value="' + escapeHtml(jsonField) + '"' + selected + '>' + escapeHtml(jsonField) + '</option>';
+            });
+            
+            html += '</select>';
+            html += '</td>';
+            html += '</tr>';
+        });
+        
+        html += '</table>';
+        html += '</div>';
+        
+        return html;
+    }
+
+    /**
+     * Show message to user
+     */
+    function showMessage(type, message) {
+        var $notice = $('<div class="notice notice-' + type + ' is-dismissible"><p>' + message + '</p></div>');
+        
+        // Remove existing notices
+        $('.notice').remove();
+        
+        // Add new notice
+        $('.wrap > h1').after($notice);
+        
+        // Auto-dismiss success messages
+        if (type === 'success') {
+            setTimeout(function() {
+                $notice.fadeOut();
+            }, 5000);
+        }
+        
+        // Scroll to top
+        $('html, body').animate({ scrollTop: 0 }, 300);
+    }
+
+    /**
+     * Format file size for display
+     */
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        var k = 1024;
+        var sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        var i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    /**
+     * Utility function to escape HTML
+     */
+    function escapeHtml(text) {
+        var map = {
+            '&': '&amp;',
+            '<': '&lt;',
+            '>': '&gt;',
+            '"': '&quot;',
+            "'": '&#039;'
+        };
+        
+        return text.replace(/[&<>"']/g, function(m) { return map[m]; });
+    }
+
+    /**
+     * Show the modal
+     */
+    function showModal() {
+        $('#jpi-modal-backdrop').show();
+        $('#jpi-modal-wrap').show();
+        $('body').addClass('modal-open');
+        
+        // Focus management for accessibility
+        $('#jpi-modal-wrap').focus();
+        
+        console.log('Modal opened');
+    }
+
+    /**
+     * Close the modal
+     */
+    function closeModal() {
+        $('#jpi-modal-backdrop').hide();
+        $('#jpi-modal-wrap').hide();
+        $('body').removeClass('modal-open');
+        
+        console.log('Modal closed');
+    }
+
+    /**
+     * Reset preview state
+     */
+    function resetPreview() {
+        $('#jpi-json-content').empty();
+        $('#jpi-field-mapping-container').html('<div class="jpi-mapping-placeholder"><p>After uploading a JSON file, you can map the fields to WordPress post fields here.</p></div>');
+        $('.jpi-import-button').prop('disabled', true);
+        currentJsonData = null;
+        window.currentJsonData = null;
+        
+        console.log('Preview reset');
+    }
+
+    /**
+     * Show loading state
+     */
+    function showLoading(message) {
+        message = message || 'Loading...';
+        $('#jpi-preview-loading span:last-child').text(message);
+        $('#jpi-preview-loading').show();
+        $('#jpi-preview-error').hide();
+    }
+
+    /**
+     * Hide loading state
+     */
+    function hideLoading() {
+        $('#jpi-preview-loading').hide();
+    }
+
+    /**
+     * Handle import button click
+     */
+    function handleImportClick() {
+        if (!currentJsonData) {
+            showMessage('error', 'No JSON data available for import.');
+            return;
+        }
+
+        // Check if field mapping is valid using enhanced validation
+        if (typeof validateFieldMapping === 'function') {
+            if (!validateFieldMapping()) {
+                showMessage('error', jpi_vars.i18n.fix_validation_errors || 'Please fix the validation errors before importing.');
+                return;
+            }
+        } else {
+            // Fallback validation
+            var titleMapping = $('select[name="field_mapping[standard][post_title]"]').val();
+            if (!titleMapping) {
+                showMessage('error', 'Post title mapping is required.');
+                return;
+            }
+        }
+
+        // Collect field mappings and import settings
+        var fieldMappings = {};
+        var importSettings = {};
+
+        // Get standard field mappings
+        $('select[name^="field_mapping[standard]"]').each(function() {
+            var fieldName = $(this).attr('name').match(/\[([^\]]+)\]$/)[1];
+            var fieldValue = $(this).val();
+            if (fieldValue) {
+                fieldMappings[fieldName] = fieldValue;
+            }
+        });
+
+        // Get import settings using the flexible function
+        if (typeof getImportSettings === 'function') {
+            importSettings = getImportSettings();
+        } else {
+            // Fallback to basic settings
+            importSettings.post_type = $('#jpi-post-type').val() || 'post';
+            importSettings.post_status = $('#jpi-post-status').val() || 'draft';
+            importSettings.update_existing = $('#jpi-update-existing').is(':checked');
+            importSettings.import_images = $('#jpi-import-images').is(':checked');
+            importSettings.create_terms = $('#jpi-create-terms').is(':checked');
+        }
+
+        // Start import process
+        startImportProcess(currentJsonData, fieldMappings, importSettings);
+    }
+
+    /**
+     * Start the import process
+     */
+    function startImportProcess(jsonData, fieldMappings, importSettings) {
+        var $importButton = $('.jpi-import-button');
+        var originalText = $importButton.text();
+        
+        // Show loading state
+        $importButton.prop('disabled', true).html('<span class="spinner is-active"></span> Starting Import...');
+
+        // Prepare data for AJAX request
+        var importData = {
+            action: 'jpi_start_import',
+            nonce: jpi_vars.nonce,
+            json_data: JSON.stringify(jsonData),
+            field_mappings: fieldMappings,
+            import_settings: importSettings
+        };
+
+        // Make AJAX request to start import
+        $.ajax({
+            url: jpi_vars.ajax_url,
+            type: 'POST',
+            data: importData,
+            dataType: 'json'
+        })
+        .done(function(response) {
+            if (response.success) {
+                // Start batch processing
+                startBatchProcessing(response.data);
+            } else {
+                showMessage('error', response.data.message || 'Failed to start import.');
+                $importButton.prop('disabled', false).text(originalText);
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Import start error:', error);
+            showMessage('error', 'Failed to start import: ' + error);
+            $importButton.prop('disabled', false).text(originalText);
+        });
+    }
+
+    /**
+     * Start batch processing with progress tracking
+     */
+    function startBatchProcessing(importInfo) {
+        var importId = importInfo.import_id;
+        var totalBatches = importInfo.total_batches;
+        var currentBatch = 0;
+        var cancelled = false;
+        
+        // Show progress UI
+        showProgressUI(importInfo);
+        
+        // Process batches sequentially
+        function processBatch() {
+            if (cancelled || currentBatch >= totalBatches) {
+                return;
+            }
+            
+            $.ajax({
+                url: jpi_vars.ajax_url,
+                type: 'POST',
+                data: {
+                    action: 'jpi_process_batch',
+                    nonce: jpi_vars.nonce,
+                    import_id: importId,
+                    batch_number: currentBatch
+                },
+                dataType: 'json'
+            })
+            .done(function(response) {
+                if (response.success) {
+                    updateProgress(response.data.progress);
+                    
+                    if (response.data.import_complete) {
+                        // Import completed
+                        showImportResults(importId);
+                    } else {
+                        // Process next batch
+                        currentBatch++;
+                        setTimeout(processBatch, 500); // Small delay between batches
+                    }
+                } else {
+                    showMessage('error', response.data.message || 'Batch processing failed.');
+                    hideProgressUI();
+                }
+            })
+            .fail(function(xhr, status, error) {
+                console.error('Batch processing error:', error);
+                showMessage('error', 'Batch processing failed: ' + error);
+                hideProgressUI();
+            });
+        }
+        
+        // Set up cancel functionality
+        $('#jpi-cancel-import').off('click').on('click', function() {
+            if (confirm('Are you sure you want to cancel the import?')) {
+                cancelled = true;
+                cancelImport(importId);
+            }
+        });
+        
+        // Start processing
+        processBatch();
+    }
+
+    /**
+     * Show progress UI
+     */
+    function showProgressUI(importInfo) {
+        var progressHtml = `
+            <div id="jpi-progress-container" class="jpi-progress-container">
+                <div class="jpi-progress-header">
+                    <h3>Import Progress</h3>
+                    <button type="button" id="jpi-cancel-import" class="button button-secondary">Cancel Import</button>
+                </div>
+                <div class="jpi-progress-bar-container">
+                    <div class="jpi-progress-bar">
+                        <div class="jpi-progress-bar-fill" style="width: 0%"></div>
+                    </div>
+                    <div class="jpi-progress-text">0% (0 of ${importInfo.total_items} items)</div>
+                </div>
+                <div class="jpi-progress-stats">
+                    <div class="jpi-stat">
+                        <span class="jpi-stat-label">Created:</span>
+                        <span class="jpi-stat-value" id="jpi-created-count">0</span>
+                    </div>
+                    <div class="jpi-stat">
+                        <span class="jpi-stat-label">Updated:</span>
+                        <span class="jpi-stat-value" id="jpi-updated-count">0</span>
+                    </div>
+                    <div class="jpi-stat">
+                        <span class="jpi-stat-label">Skipped:</span>
+                        <span class="jpi-stat-value" id="jpi-skipped-count">0</span>
+                    </div>
+                    <div class="jpi-stat">
+                        <span class="jpi-stat-label">Errors:</span>
+                        <span class="jpi-stat-value" id="jpi-error-count">0</span>
+                    </div>
+                </div>
+                <div class="jpi-progress-details">
+                    <div class="jpi-batch-info">
+                        Batch <span id="jpi-current-batch">1</span> of <span id="jpi-total-batches">${importInfo.total_batches}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Replace modal content with progress UI
+        $('.jpi-modal-body').html(progressHtml);
+        $('.jpi-modal-footer').hide();
+    }
+
+    /**
+     * Update progress display
+     */
+    function updateProgress(progress) {
+        $('#jpi-progress-container .jpi-progress-bar-fill').css('width', progress.percentage + '%');
+        $('#jpi-progress-container .jpi-progress-text').text(
+            progress.percentage + '% (' + progress.processed_items + ' of ' + progress.total_items + ' items)'
+        );
+        
+        $('#jpi-created-count').text(progress.created_posts);
+        $('#jpi-updated-count').text(progress.updated_posts);
+        $('#jpi-skipped-count').text(progress.skipped_posts);
+        $('#jpi-error-count').text(progress.error_count);
+        $('#jpi-current-batch').text(progress.current_batch);
+    }
+
+    /**
+     * Hide progress UI
+     */
+    function hideProgressUI() {
+        $('#jpi-progress-container').remove();
+        $('.jpi-modal-footer').show();
+        $('.jpi-import-button').prop('disabled', false).text('Import Selected Items');
+    }
+
+    /**
+     * Cancel import
+     */
+    function cancelImport(importId) {
+        $.ajax({
+            url: jpi_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'jpi_cancel_import',
+                nonce: jpi_vars.nonce,
+                import_id: importId
+            },
+            dataType: 'json'
+        })
+        .done(function(response) {
+            if (response.success) {
+                showMessage('info', response.data.message);
+                showImportResults(importId, true);
+            } else {
+                showMessage('error', response.data.message || 'Failed to cancel import.');
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Cancel import error:', error);
+            showMessage('error', 'Failed to cancel import: ' + error);
+        });
+    }
+
+    /**
+     * Show import results
+     */
+    function showImportResults(importId, wasCancelled) {
+        $.ajax({
+            url: jpi_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'jpi_get_import_results',
+                nonce: jpi_vars.nonce,
+                import_id: importId
+            },
+            dataType: 'json'
+        })
+        .done(function(response) {
+            if (response.success) {
+                displayImportResults(response.data.results, wasCancelled);
+            } else {
+                showMessage('error', response.data.message || 'Failed to get import results.');
+                hideProgressUI();
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Get results error:', error);
+            showMessage('error', 'Failed to get import results: ' + error);
+            hideProgressUI();
+        });
+    }
+
+    /**
+     * Display import results
+     */
+    function displayImportResults(results, wasCancelled) {
+        var statusClass = results.status === 'completed' ? 'success' : 
+                         results.status === 'cancelled' ? 'warning' : 'error';
+        
+        var statusText = results.status === 'completed' ? 'Completed Successfully' :
+                        results.status === 'cancelled' ? 'Cancelled' : 'Failed';
+        
+        var resultsHtml = `
+            <div class="jpi-results-container">
+                <div class="jpi-results-header">
+                    <h3>Import Results</h3>
+                    <div class="jpi-status jpi-status-${statusClass}">${statusText}</div>
+                </div>
+                <div class="jpi-results-summary">
+                    <div class="jpi-result-stat">
+                        <div class="jpi-result-number">${results.processed_items}</div>
+                        <div class="jpi-result-label">Items Processed</div>
+                    </div>
+                    <div class="jpi-result-stat">
+                        <div class="jpi-result-number">${results.created_posts}</div>
+                        <div class="jpi-result-label">Posts Created</div>
+                    </div>
+                    <div class="jpi-result-stat">
+                        <div class="jpi-result-number">${results.updated_posts}</div>
+                        <div class="jpi-result-label">Posts Updated</div>
+                    </div>
+                    <div class="jpi-result-stat">
+                        <div class="jpi-result-number">${results.skipped_posts}</div>
+                        <div class="jpi-result-label">Posts Skipped</div>
+                    </div>
+                    <div class="jpi-result-stat">
+                        <div class="jpi-result-number">${results.error_count}</div>
+                        <div class="jpi-result-label">Errors</div>
+                    </div>
+                </div>
+                <div class="jpi-results-details">
+                    <p><strong>Import ID:</strong> ${results.import_id}</p>
+                    <p><strong>Started:</strong> ${results.start_time}</p>
+                    ${results.end_time ? '<p><strong>Completed:</strong> ' + results.end_time + '</p>' : ''}
+                    ${results.duration ? '<p><strong>Duration:</strong> ' + results.duration + '</p>' : ''}
+                </div>
+                ${results.errors && results.errors.length > 0 ? generateErrorsHtml(results.errors) : ''}
+            </div>
+        `;
+        
+        // Replace modal content with results
+        $('.jpi-modal-body').html(resultsHtml);
+        
+        // Update footer buttons
+        $('.jpi-modal-footer').html(`
+            <button type="button" id="jpi-view-logs" class="button">View Logs</button>
+            <button type="button" id="jpi-close-results" class="button button-primary">Close</button>
+        `);
+        
+        // Bind close button
+        $('#jpi-close-results').on('click', function() {
+            closeModal();
+            resetPreview();
+            showMessage('success', 'Import ' + statusText.toLowerCase() + '!');
+        });
+        
+        // Bind view logs button
+        $('#jpi-view-logs').on('click', function() {
+            showImportLogs(results.import_id);
+        });
+    }
+
+    /**
+     * Generate errors HTML
+     */
+    function generateErrorsHtml(errors) {
+        if (!errors || errors.length === 0) {
+            return '';
+        }
+        
+        var errorsHtml = '<div class="jpi-errors-section"><h4>Errors (' + errors.length + ')</h4><div class="jpi-errors-list">';
+        
+        errors.slice(0, 10).forEach(function(error, index) {
+            errorsHtml += `
+                <div class="jpi-error-item">
+                    <div class="jpi-error-message">${escapeHtml(error.message)}</div>
+                    <div class="jpi-error-details">Item ${error.item_index + 1}</div>
+                </div>
+            `;
+        });
+        
+        if (errors.length > 10) {
+            errorsHtml += '<div class="jpi-error-more">... and ' + (errors.length - 10) + ' more errors</div>';
+        }
+        
+        errorsHtml += '</div></div>';
+        return errorsHtml;
+    }
+
+    /**
+     * Initialize history and logs functionality
+     */
+    function initHistoryAndLogs() {
+        // Load import history on page load
+        loadImportHistory();
+        
+        // Refresh history button
+        $('#jpi-refresh-history').on('click', function() {
+            loadImportHistory();
+        });
+        
+        // View logs button
+        $('#jpi-view-logs').on('click', function() {
+            showLogsModal();
+        });
+        
+        // Logs modal handlers
+        $('#jpi-logs-modal-close, #jpi-close-logs').on('click', function() {
+            hideLogsModal();
+        });
+        
+        $('#jpi-logs-modal-backdrop').on('click', function(e) {
+            if (e.target === this) {
+                hideLogsModal();
+            }
+        });
+        
+        // Clear logs button
+        $('#jpi-clear-logs').on('click', function() {
+            if (confirm('Are you sure you want to clear all import logs?')) {
+                clearImportLogs();
+            }
+        });
+        
+        // Log filters
+        $('#jpi-logs-level-filter, #jpi-logs-search').on('input change', function() {
+            filterLogs();
+        });
+    }
+
+    /**
+     * Load import history
+     */
+    function loadImportHistory() {
+        var $container = $('#jpi-history-container');
+        
+        $container.html('<div class="jpi-loading-history"><span class="spinner is-active"></span><span>Loading import history...</span></div>');
+        
+        $.ajax({
+            url: jpi_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'jpi_get_import_history',
+                nonce: jpi_vars.nonce
+            },
+            dataType: 'json'
+        })
+        .done(function(response) {
+            if (response.success) {
+                displayImportHistory(response.data.history);
+            } else {
+                $container.html('<div class="jpi-error"><p>' + (response.data.message || 'Failed to load import history.') + '</p></div>');
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Load history error:', error);
+            $container.html('<div class="jpi-error"><p>Failed to load import history: ' + error + '</p></div>');
+        });
+    }
+
+    /**
+     * Display import history
+     */
+    function displayImportHistory(history) {
+        var $container = $('#jpi-history-container');
+        
+        if (!history || history.length === 0) {
+            $container.html('<div class="jpi-no-history"><p>No import history found. Start your first import above!</p></div>');
+            return;
+        }
+        
+        var historyHtml = '<div class="jpi-history-table-container"><table class="jpi-history-table">';
+        historyHtml += '<thead><tr>';
+        historyHtml += '<th>Import ID</th>';
+        historyHtml += '<th>Date</th>';
+        historyHtml += '<th>Status</th>';
+        historyHtml += '<th>Items</th>';
+        historyHtml += '<th>Created</th>';
+        historyHtml += '<th>Updated</th>';
+        historyHtml += '<th>Errors</th>';
+        historyHtml += '<th>Actions</th>';
+        historyHtml += '</tr></thead><tbody>';
+        
+        history.forEach(function(item) {
+            var statusClass = item.status === 'completed' ? 'success' : 
+                             item.status === 'cancelled' ? 'warning' : 'error';
+            
+            var statusText = item.status === 'completed' ? 'Completed' :
+                            item.status === 'cancelled' ? 'Cancelled' : 'Failed';
+            
+            historyHtml += '<tr>';
+            historyHtml += '<td><code>' + escapeHtml(item.import_id) + '</code></td>';
+            historyHtml += '<td>' + formatDate(item.start_time) + '</td>';
+            historyHtml += '<td><span class="jpi-status jpi-status-' + statusClass + '">' + statusText + '</span></td>';
+            historyHtml += '<td>' + item.processed_items + ' / ' + item.total_items + '</td>';
+            historyHtml += '<td>' + item.created_posts + '</td>';
+            historyHtml += '<td>' + item.updated_posts + '</td>';
+            historyHtml += '<td>' + (item.error_count > 0 ? '<span class="jpi-error-count">' + item.error_count + '</span>' : '0') + '</td>';
+            historyHtml += '<td><button type="button" class="button button-small jpi-view-details" data-import-id="' + escapeHtml(item.import_id) + '">Details</button></td>';
+            historyHtml += '</tr>';
+        });
+        
+        historyHtml += '</tbody></table></div>';
+        
+        $container.html(historyHtml);
+        
+        // Bind detail buttons
+        $('.jpi-view-details').on('click', function() {
+            var importId = $(this).data('import-id');
+            showImportDetails(importId);
+        });
+    }
+
+    /**
+     * Show import details
+     */
+    function showImportDetails(importId) {
+        $.ajax({
+            url: jpi_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'jpi_get_import_results',
+                nonce: jpi_vars.nonce,
+                import_id: importId
+            },
+            dataType: 'json'
+        })
+        .done(function(response) {
+            if (response.success) {
+                showModal();
+                displayImportResults(response.data.results, false);
+            } else {
+                showMessage('error', response.data.message || 'Failed to load import details.');
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Load details error:', error);
+            showMessage('error', 'Failed to load import details: ' + error);
+        });
+    }
+
+    /**
+     * Show logs modal
+     */
+    function showLogsModal() {
+        $('#jpi-logs-modal-backdrop').show();
+        $('#jpi-logs-modal-wrap').show();
+        $('body').addClass('modal-open');
+        
+        loadImportLogs();
+    }
+
+    /**
+     * Hide logs modal
+     */
+    function hideLogsModal() {
+        $('#jpi-logs-modal-backdrop').hide();
+        $('#jpi-logs-modal-wrap').hide();
+        $('body').removeClass('modal-open');
+    }
+
+    /**
+     * Load import logs
+     */
+    function loadImportLogs() {
+        var $container = $('#jpi-logs-container');
+        
+        $container.html('<div class="jpi-loading"><span class="spinner is-active"></span><span>Loading logs...</span></div>');
+        
+        $.ajax({
+            url: jpi_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'jpi_get_import_logs',
+                nonce: jpi_vars.nonce
+            },
+            dataType: 'json'
+        })
+        .done(function(response) {
+            if (response.success) {
+                displayImportLogs(response.data.logs || []);
+            } else {
+                $container.html('<div class="jpi-error"><p>' + (response.data.message || 'Failed to load logs.') + '</p></div>');
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Load logs error:', error);
+            $container.html('<div class="jpi-error"><p>Failed to load logs: ' + error + '</p></div>');
+        });
+    }
+
+    /**
+     * Display import logs
+     */
+    function displayImportLogs(logs) {
+        var $container = $('#jpi-logs-container');
+        
+        if (!logs || logs.length === 0) {
+            $container.html('<div class="jpi-no-logs"><p>No logs found.</p></div>');
+            return;
+        }
+        
+        var logsHtml = '<div class="jpi-logs-list">';
+        
+        logs.forEach(function(log) {
+            var levelClass = 'jpi-log-' + log.level;
+            logsHtml += '<div class="jpi-log-entry ' + levelClass + '" data-level="' + log.level + '">';
+            logsHtml += '<div class="jpi-log-header">';
+            logsHtml += '<span class="jpi-log-time">' + formatDateTime(log.timestamp) + '</span>';
+            logsHtml += '<span class="jpi-log-level jpi-log-level-' + log.level + '">' + log.level.toUpperCase() + '</span>';
+            logsHtml += '<span class="jpi-log-import-id">' + escapeHtml(log.import_id) + '</span>';
+            logsHtml += '</div>';
+            logsHtml += '<div class="jpi-log-message">' + escapeHtml(log.message) + '</div>';
+            logsHtml += '</div>';
+        });
+        
+        logsHtml += '</div>';
+        
+        $container.html(logsHtml);
+    }
+
+    /**
+     * Filter logs
+     */
+    function filterLogs() {
+        var levelFilter = $('#jpi-logs-level-filter').val();
+        var searchFilter = $('#jpi-logs-search').val().toLowerCase();
+        
+        $('.jpi-log-entry').each(function() {
+            var $entry = $(this);
+            var level = $entry.data('level');
+            var message = $entry.find('.jpi-log-message').text().toLowerCase();
+            var importId = $entry.find('.jpi-log-import-id').text().toLowerCase();
+            
+            var levelMatch = !levelFilter || level === levelFilter;
+            var searchMatch = !searchFilter || message.includes(searchFilter) || importId.includes(searchFilter);
+            
+            if (levelMatch && searchMatch) {
+                $entry.show();
+            } else {
+                $entry.hide();
+            }
+        });
+    }
+
+    /**
+     * Clear import logs
+     */
+    function clearImportLogs() {
+        $.ajax({
+            url: jpi_vars.ajax_url,
+            type: 'POST',
+            data: {
+                action: 'jpi_clear_import_logs',
+                nonce: jpi_vars.nonce
+            },
+            dataType: 'json'
+        })
+        .done(function(response) {
+            if (response.success) {
+                loadImportLogs();
+                showMessage('success', 'Import logs cleared successfully.');
+            } else {
+                showMessage('error', response.data.message || 'Failed to clear logs.');
+            }
+        })
+        .fail(function(xhr, status, error) {
+            console.error('Clear logs error:', error);
+            showMessage('error', 'Failed to clear logs: ' + error);
+        });
+    }
+
+    /**
+     * Format date for display
+     */
+    function formatDate(dateString) {
+        var date = new Date(dateString);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    }
+
+    /**
+     * Format datetime for display
+     */
+    function formatDateTime(dateString) {
+        var date = new Date(dateString);
+        return date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+    }
+
+    /**
+     * Show import logs
+     */
+    function showImportLogs(importId) {
+        showLogsModal();
+        // Filter logs by import ID after loading
+        setTimeout(function() {
+            $('#jpi-logs-search').val(importId).trigger('input');
+        }, 500);
+    }
+
+    // Make some functions globally available for debugging
+    window.jpiDebug = {
+        currentJsonData: function() { return currentJsonData; },
+        showModal: showModal,
+        closeModal: closeModal,
+        resetPreview: resetPreview,
+        processFile: processFileForPreview,
+        loadHistory: loadImportHistory,
+        showLogs: showLogsModal
+    };
+
+})(jQuery);    /**
+
+     * Initialize flexible import options handlers
+     */
+    function initFlexibleImportOptions() {
+        // Handle dry run option
+        $('#jpi-dry-run').on('change', function() {
+            const $importButton = $('.jpi-import-button');
+            if ($(this).is(':checked')) {
+                $importButton.text(jpi_vars.i18n.preview_import || 'Preview Import');
+                $importButton.removeClass('button-primary').addClass('button-secondary');
+            } else {
+                $importButton.text(jpi_vars.i18n.import_posts || 'Import Posts');
+                $importButton.removeClass('button-secondary').addClass('button-primary');
+            }
+        });
+        
+        // Handle preserve IDs warning
+        $('#jpi-preserve-ids').on('change', function() {
+            if ($(this).is(':checked')) {
+                if (!$('#jpi-preserve-ids-warning').length) {
+                    $(this).closest('label').after(
+                        '<div id="jpi-preserve-ids-warning" class="notice notice-warning inline" style="margin: 10px 0; padding: 8px 12px;">' +
+                        '<p><strong>Warning:</strong> Preserving post IDs may cause conflicts if posts with those IDs already exist.</p>' +
+                        '</div>'
+                    );
+                }
+            } else {
+                $('#jpi-preserve-ids-warning').remove();
+            }
+        });
+        
+        // Handle memory limit validation
+        $('#jpi-memory-limit').on('blur', function() {
+            const value = $(this).val().trim();
+            if (value && !/^\d+[MG]?$/i.test(value)) {
+                $(this).addClass('jpi-field-error');
+                if (!$('#jpi-memory-limit-error').length) {
+                    $(this).after('<div id="jpi-memory-limit-error" class="jpi-validation-message error" style="display: block;">Invalid format. Use format like 512M or 1G.</div>');
+                }
+            } else {
+                $(this).removeClass('jpi-field-error');
+                $('#jpi-memory-limit-error').remove();
+            }
+        });
+        
+        // Handle batch size validation
+        $('#jpi-batch-size').on('change', function() {
+            const value = parseInt($(this).val(), 10);
+            if (value > 50) {
+                if (!$('#jpi-batch-size-warning').length) {
+                    $(this).after('<div id="jpi-batch-size-warning" class="jpi-validation-message warning" style="display: block;">Large batch sizes may cause timeouts or memory issues.</div>');
+                }
+            } else {
+                $('#jpi-batch-size-warning').remove();
+            }
+        });
+        
+        // Add option status indicators
+        $('.jpi-checkbox-options input[type="checkbox"]').each(function() {
+            const $checkbox = $(this);
+            const $label = $checkbox.closest('label');
+            
+            if (!$label.find('.jpi-option-status').length) {
+                $label.append('<span class="jpi-option-status"></span>');
+            }
+            
+            updateOptionStatus($checkbox);
+        });
+        
+        // Update status indicators on change
+        $('.jpi-checkbox-options input[type="checkbox"]').on('change', function() {
+            updateOptionStatus($(this));
         });
     }
     
     /**
-     * Prevent default drag behaviors
+     * Update option status indicator
      */
-    function preventDefaults(e) {
-        e.preventDefault();
-        e.stopPropagation();
-    }
-    
-    /**
-     * Highlight drop zone
-     */
-    function highlight() {
-        $(this).addClass('highlight');
-    }
-    
-    /**
-     * Unhighlight drop zone
-     */
-    function unhighlight() {
-        $(this).removeClass('highlight');
-    }
-    
-    /**
-     * Handle dropped files
-     */
-    function handleDrop(e) {
-        const dt = e.originalEvent.dataTransfer;
-        const files = dt.files;
+    function updateOptionStatus($checkbox) {
+        const $status = $checkbox.closest('label').find('.jpi-option-status');
         
-        if (files.length) {
-            $fileInput[0].files = files;
-            updateFileLabel(files[0].name);
-            validateFile(files[0]);
+        if ($checkbox.is(':checked')) {
+            $status.removeClass('disabled warning').addClass('enabled');
+        } else {
+            $status.removeClass('enabled warning').addClass('disabled');
+        }
+        
+        // Special handling for certain options
+        if ($checkbox.attr('id') === 'jpi-preserve-ids' && $checkbox.is(':checked')) {
+            $status.removeClass('enabled').addClass('warning');
         }
     }
-});
+    
+    /**
+     * Reset import options to defaults
+     */
+    function resetImportOptions() {
+        $('#jpi-post-type').val('post');
+        $('#jpi-post-status').val('draft');
+        $('#jpi-batch-size').val(10);
+        $('#jpi-default-author').val(jpi_vars.current_user_id || 1);
+        $('#jpi-date-format').val('Y-m-d H:i:s');
+        $('#jpi-timeout').val(30);
+        $('#jpi-memory-limit').val('');
+        
+        // Reset checkboxes to defaults
+        $('#jpi-update-existing, #jpi-import-images, #jpi-create-terms, #jpi-import-meta').prop('checked', true);
+        $('#jpi-preserve-ids, #jpi-dry-run, #jpi-skip-duplicates, #jpi-enable-revisions').prop('checked', false);
+        
+        // Update status indicators
+        $('.jpi-checkbox-options input[type="checkbox"]').each(function() {
+            updateOptionStatus($(this));
+        });
+        
+        // Remove any warnings
+        $('.jpi-validation-message, #jpi-preserve-ids-warning').remove();
+        $('.jpi-field-error').removeClass('jpi-field-error');
+    }
+    
+    // Initialize flexible options when document is ready
+    $(document).ready(function() {
+        initFlexibleImportOptions();
+        
+        // Add reset button to advanced options
+        if ($('.jpi-advanced-content').length && !$('#jpi-reset-options').length) {
+            $('.jpi-advanced-content').append(
+                '<div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #e1e1e1;">' +
+                '<button type="button" id="jpi-reset-options" class="button">' +
+                (jpi_vars.i18n.reset_options || 'Reset to Defaults') +
+                '</button></div>'
+            );
+            
+            $('#jpi-reset-options').on('click', function() {
+                if (confirm(jpi_vars.i18n.confirm_reset_options || 'Are you sure you want to reset all import options to their defaults?')) {
+                    resetImportOptions();
+                }
+            });
+        }
+    });

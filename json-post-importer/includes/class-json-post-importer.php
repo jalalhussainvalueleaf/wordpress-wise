@@ -65,6 +65,9 @@ class JSON_Post_Importer {
      * @access   private
      */
     private function load_dependencies() {
+        // Load the logger class first as other classes depend on it
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-logger.php';
+        
         // Load the JSON Post Creator first as other classes depend on it
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-creator.php';
         
