@@ -56,6 +56,7 @@ class JSON_Post_Importer {
         $this->define_admin_hooks();
         $this->define_public_hooks();
         $this->define_api_hooks();
+        $this->init_integrations();
     }
 
     /**
@@ -79,6 +80,9 @@ class JSON_Post_Importer {
         
         // Load the Yoast SEO Integration class
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-yoast-seo.php';
+        
+        // Load the FAQ Integration class
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-faq-integration.php';
         
         // The class responsible for orchestrating the actions and filters of the core plugin.
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-loader.php';
@@ -154,6 +158,17 @@ class JSON_Post_Importer {
         
         // Register REST API routes
         add_action('rest_api_init', array($plugin_api, 'register_routes'));
+    }
+
+    /**
+     * Initialize plugin integrations.
+     *
+     * @since    1.0.0
+     * @access   private
+     */
+    private function init_integrations() {
+        // Initialize FAQ integration
+        JSON_Post_Importer_FAQ_Integration::init();
     }
 
     /**
