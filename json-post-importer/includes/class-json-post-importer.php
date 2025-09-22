@@ -74,6 +74,12 @@ class JSON_Post_Importer {
         // Load the WordPress Formatter class
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-wordpress-formatter.php';
         
+        // Load the Nested Handler class
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-nested-handler.php';
+        
+        // Load the Yoast SEO Integration class
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-yoast-seo.php';
+        
         // The class responsible for orchestrating the actions and filters of the core plugin.
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-json-post-importer-loader.php';
         

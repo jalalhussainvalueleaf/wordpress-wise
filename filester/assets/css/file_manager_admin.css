@@ -23,6 +23,9 @@
   background-color: #ffff !important;
   border-bottom: 1px solid #ffff;
 }
+.wp-core-ui select{
+  min-height: 20px !important;
+}
 .njt-fs-select-theme {
   display: flex;
   position: relative;

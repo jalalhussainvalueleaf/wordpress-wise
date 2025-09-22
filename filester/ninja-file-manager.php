@@ -3,7 +3,7 @@
  * Plugin Name: Filester - File Manager Pro
  * Plugin URI: https://ninjateam.org/filester
  * Description: Made to help you focus on WordPress file management and avoid being distracted.
- * Version: 1.9
+ * Version: 2.0
  * Author: Ninja Team
  * Author URI: https://ninjateam.org
  * Text Domain: filester
@@ -35,7 +35,7 @@ if (file_exists(dirname(__FILE__) . '/includes/functions.php')) {
 defined('ABSPATH') || exit;
 
 define('NJT_FS_BN_PREFIX', 'njt-fs');
-define('NJT_FS_BN_VERSION', '1.9');
+define('NJT_FS_BN_VERSION', '2.0');
 define('NJT_FS_BN_DOMAIN', 'filester');
 
 define('NJT_FS_BN_PLUGIN_DIR', basename(__DIR__));

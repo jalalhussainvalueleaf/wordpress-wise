@@ -1,12 +1,12 @@
 (function ($) {
-	(function(editors, elFinder) {
+(function(editors, elFinder) {
 	if (typeof define === 'function' && define.amd) {
 		define(['elfinder'], editors);
 	} else if (elFinder) {
 		var optEditors = elFinder.prototype._options.commandsOptions.edit.editors;
 		elFinder.prototype._options.commandsOptions.edit.editors = optEditors.concat(editors(elFinder));
 	}
-	}(function(elFinder) {
+}(function(elFinder) {
 	"use strict";
 	var apps = {},
 		// get query of getfile
@@ -69,7 +69,7 @@
 							dfd.reject();
 						}
 					};
-	
+
 				img.src = src;
 				$(img).on('load', function() {
 					try {
@@ -307,7 +307,7 @@
 							per = $('<button></button>').css('width', '4em').text('%').attr('title', '100%').data('val', 0),
 							tuiZoomCtrls,
 							quty, qutyTm, zoomTm, zoomMore;
-	
+
 						tmpContainer.remove();
 						$base.removeData('url').data('mime', self.file.mime);
 						// jpeg quality controls
@@ -360,7 +360,7 @@
 								}
 							})
 							.prependTo($base.parent().next());
-	
+
 						// wait canvas ready
 						setTimeout(function() {
 							dfrd.resolve(iEditor);
@@ -375,7 +375,7 @@
 							// show initial scale
 							zoom(null);
 						}, 100);
-	
+
 						// show color slider (maybe TUI-Image-Editor's bug)
 						// see https://github.com/nhn/tui.image-editor/issues/153
 						$base.find('.tui-colorpicker-palette-container').on('click', '.tui-colorpicker-palette-preview', function() {
@@ -386,7 +386,7 @@
 						});
 					},
 					loader;
-	
+
 				if (!self.confObj.editor) {
 					loader = $.Deferred();
 					fm.loadCss([
@@ -515,7 +515,7 @@
 					getType = function(mime) {
 						var ext = getExtention(mime, fm),
 							extmime = ext2mime[ext];
-	
+
 						if (!confObj.mimesFlip[extmime]) {
 							ext = '';
 						} else if (ext === 'jpeg') {
@@ -549,13 +549,13 @@
 								wnd.postMessage(data, orig);
 							}),
 							dfdGet;
-	
+
 						this.load = function() {
 							return fm.getContents(file.hash, 'arraybuffer').done(function(d) {
 								data = d;
 							});
 						};
-	
+
 						this.receive = function(e) {
 							var ev = e.originalEvent,
 								state;
@@ -584,7 +584,7 @@
 								}
 							}
 						};
-	
+
 						this.getContent = function() {
 							var type, q;
 							if (phase > 1) {
@@ -610,7 +610,7 @@
 						};
 					};
 				}
-	
+
 				ifm.parent().css('padding', 0);
 				type = getType(file.mime);
 				liveMsg = editor.liveMsg = new confObj.liveMsg(ifm, spnr, file);
@@ -628,7 +628,7 @@
 					err && fm.error(err);
 					editor.initFail = true;
 				});
-	
+
 				// jpeg quality controls
 				if (file.mime === 'image/jpeg' || file.mime === 'image/webp') {
 					ifm.data('quality', fm.storage('jpgQuality') || fm.option('jpgQuality'));
@@ -827,9 +827,9 @@
 						node.data('loading')(true);
 					},
 					qBase, quty, qutyTm, canvas, editor;
-	
+
 				node.data('loading')();
-	
+
 				// jpeg quality controls
 				if (self.file.mime === 'image/jpeg') {
 					quty = $('<input type="number" class="ui-corner-all elfinder-resize-quality elfinder-tabstop"/>')
@@ -856,7 +856,7 @@
 						.prependTo($base.parent().next());
 					$base.data('quty', quty);
 				}
-	
+
 				// load script then init
 				if (typeof Pixo === 'undefined') {
 					fm.loadScript(['https://pixoeditor.com:8443/editor/scripts/bridge.m.js'], function() {
@@ -942,22 +942,22 @@
 							'application/docbook+xml' : 'xml',
 							'application/xml'		  : 'xml'
 						};
-	
+
 						// set base height
 						taBase.height(taBase.height());
-	
+
 						// set basePath of ace
 						ace.config.set('basePath', cdn);
-	
+
 						// Base node of Ace editor
 						editorBase = $('<div id="'+id+'" style="width:100%; height:100%;"></div>').text(ta.val()).insertBefore(ta.hide());
-	
+
 						// Editor flag
 						ta.data('ace', true);
-	
+
 						// Aceeditor instance
 						editor = ace.edit(id);
-	
+
 						// Ace editor configure
 						editor.$blockScrolling = Infinity;
 						editor.setOptions({
@@ -1015,9 +1015,9 @@
 								self.doCancel();
 							}
 						});
-	
+
 						editor.resize();
-	
+
 						// TextArea button and Setting button
 						$('<div class="ui-dialog-buttonset"></div>').css('float', 'left')
 						.append(
@@ -1056,7 +1056,7 @@
 							})
 						)
 						.prependTo(taBase.next());
-	
+
 						// trigger event 'editEditorPrepare'
 						self.trigger('Prepare', {
 							node: textarea,
@@ -1068,7 +1068,7 @@
 						//dialog.trigger('resize');
 						dfrd.resolve(editor);
 					};
-	
+
 				// check ace & start
 				if (!self.confObj.loader) {
 					self.confObj.loader = $.Deferred();
@@ -1077,7 +1077,7 @@
 					}, void 0, {obj: window, name: 'ace'});
 				}
 				self.confObj.loader.done(start);
-	
+
 				return dfrd;
 			},
 			close : function(textarea, instance) {
@@ -1130,7 +1130,7 @@
 								'Ctrl-W': function() { self.doCancel(); }
 							}
 						};
-	
+
 						// trigger event 'editEditorPrepare'
 						self.trigger('Prepare', {
 							node: textarea,
@@ -1138,7 +1138,7 @@
 							instance: void(0),
 							opts: opts
 						});
-	
+
 						// CodeMirror configure
 						editor = CodeMirror.fromTextArea(textarea, opts);
 						
@@ -1296,7 +1296,7 @@
 							element: textarea,
 							autofocus: true
 						};
-	
+
 						// trigger event 'editEditorPrepare'
 						self.trigger('Prepare', {
 							node: textarea,
@@ -1304,7 +1304,7 @@
 							instance: void(0),
 							opts: opts
 						});
-	
+
 						// make editor
 						editor = new SimpleMDE(opts);
 						dfrd.resolve(editor);
@@ -1317,7 +1317,7 @@
 							.children('.CodeMirror-scroll').css('min-height', '50px');
 						textarea._setHeight(h);
 					};
-	
+
 				// check SimpleMDE & start
 				if (!self.confObj.loader) {
 					self.confObj.loader = $.Deferred();
@@ -1335,7 +1335,7 @@
 					}
 				}
 				self.confObj.loader.done(start);
-	
+
 				return dfrd;
 			},
 			close : function(textarea, instance) {
@@ -1395,7 +1395,7 @@
 						}
 						// set base height
 						base.height(h);
-	
+
 						// CKEditor configure options
 						opts = {
 							startupFocus : true,
@@ -1423,7 +1423,7 @@
 								}
 							}
 						};
-	
+
 						// trigger event 'editEditorPrepare'
 						self.trigger('Prepare', {
 							node: textarea,
@@ -1431,7 +1431,7 @@
 							instance: void(0),
 							opts: opts
 						});
-	
+
 						// CKEditor configure
 						CKEDITOR.replace(textarea.id, Object.assign(opts, self.confObj.ckeOpts));
 						CKEDITOR.on('dialogDefinition', function(e) {
@@ -1444,7 +1444,7 @@
 							});
 						});
 					};
-	
+
 				if (!self.confObj.loader) {
 					self.confObj.loader = $.Deferred();
 					window.CKEDITOR_BASEPATH = fm.options.cdns.ckeditor + '/';
@@ -1554,13 +1554,13 @@
 						
 						// set base height
 						base.height(fm.getUI().height() - 100);
-	
+
 						// CKEditor5 configure options
 						opts = Object.assign({
 							toolbar: ["heading", "|", "fontSize", "fontFamily", "|", "bold", "italic", "underline", "strikethrough", "highlight", "|", "alignment", "|", "numberedList", "bulletedList", "blockQuote", "indent", "outdent", "|", "ckfinder", "link", "imageUpload", "insertTable", "mediaEmbed", "|", "undo", "redo"],
 							language: lang
 						}, self.confObj.ckeOpts);
-	
+
 						// trigger event 'editEditorPrepare'
 						self.trigger('Prepare', {
 							node: editnode,
@@ -1568,7 +1568,7 @@
 							instance: void(0),
 							opts: opts
 						});
-	
+
 						cEditor
 							.create(editnode, opts)
 							.then(function(editor) {
@@ -1710,7 +1710,7 @@
 							fm.getUI().trigger('uploadabort');
 						};
 					}, loader;
-	
+
 				if (!self.confObj.editor) {
 					loader = $.Deferred();
 					self.fm.loadScript([
@@ -1816,7 +1816,7 @@
 							},
 							tVer = tinymce.majorVersion,
 							opts, mceDlg, mceCv;
-	
+
 						// set base height
 						base.height(h);
 						// fit height function
@@ -1833,12 +1833,12 @@
 								base.find('.mce-edit-area iframe:first').height(areaH);
 							}
 						};
-	
+
 						// TinyMCE configure options
 						opts = {
 							selector: '#' + textarea.id,
 							resize: false,
-							plugins: 'print preview fullpage searchreplace autolink directionality visualblocks visualchars fullscreen image link media template codesample table charmap hr pagebreak nonbreaking anchor toc insertdatetime advlist lists wordcount imagetools textpattern help',
+							plugins: 'preview searchreplace autolink directionality visualblocks visualchars fullscreen image link media codesample table charmap pagebreak nonbreaking anchor insertdatetime advlist lists wordcount help',
 							toolbar: 'formatselect | bold italic strikethrough forecolor backcolor | link image media | alignleft aligncenter alignright alignjustify | numlist bullist outdent indent | removeformat',
 							image_advtab: true,
 							init_instance_callback : function(editor) {
@@ -1876,30 +1876,30 @@
 								prevVars.hasVar = true;
 								gf.callback = function(file) {
 									var url, info;
-	
+
 									if (file.mime === 'directory') {
 										fm.one('open', function() {
 											fm.commandMap.open = 'getfile';
 										}).getCommand('open').exec(file.hash);
 										return;
 									}
-	
+
 									// URL normalization
 									url = fm.convAbsUrl(file.url);
 									
 									// Make file info
 									info = file.name + ' (' + fm.formatSize(file.size) + ')';
-	
+
 									// Provide file and text for the link dialog
 									if (meta.filetype == 'file') {
 										callback(url, {text: info, title: info});
 									}
-	
+
 									// Provide image and alt text for the image dialog
 									if (meta.filetype == 'image') {
 										callback(url, {alt: info});
 									}
-	
+
 									// Provide alternative source and posted for the media dialog
 									if (meta.filetype == 'media') {
 										callback(url);
@@ -1916,25 +1916,25 @@
 									mode: 'info',
 									msg: fm.i18n('dblclickToSelect')
 								});
-	
+
 								return false;
 							},
 							images_upload_handler : function (blobInfo, success, failure) {
 								var file = blobInfo.blob(),
 									err = function(e) {
 										var dlg = e.data.dialog || {};
-										if (dlg.hasClass('elfinder-dialog-error') || dlg.hasClass('elfinder-confirm-upload')) {
-											hideMceDlg();
-											dlg.trigger('togleminimize').one('resize close', revert);
-											fm.unbind('dialogopened', err);
-										}
+		                                if (dlg.hasClass('elfinder-dialog-error') || dlg.hasClass('elfinder-confirm-upload')) {
+		                                    hideMceDlg();
+		                                    dlg.trigger('togleminimize').one('resize close', revert);
+		                                    fm.unbind('dialogopened', err);
+		                                }
 									},
 									revert = function() {
 										dlg.off('resize close', revert);
 										showMceDlg();
 									},
 									clipdata = true;
-	
+
 								// check file object
 								if (file.name) {
 									// file blob of client side file object
@@ -1967,12 +1967,12 @@
 								});
 							}
 						};
-	
+
 						// TinyMCE 5 supports "height: 100%"
 						if (tVer >= 5) {
 							opts.height = '100%';
 						}
-	
+
 						// trigger event 'editEditorPrepare'
 						self.trigger('Prepare', {
 							node: textarea,
@@ -1980,7 +1980,7 @@
 							instance: void(0),
 							opts: opts
 						});
-	
+
 						// TinyMCE configure
 						tinymce.init(Object.assign(opts, self.confObj.mceOpts));
 					};
@@ -2098,7 +2098,7 @@
 							instance: ifm,
 							opts: opts
 						});
-	
+
 						ifm.attr('src', data.zohourl).show().css(opts.css);
 						if (data.warning) {
 							uiToast.appendTo(ta.closest('.ui-dialog'));
@@ -2641,6 +2641,5 @@
 			}
 		}
 	];
-	}, window.elFinder));
+}, window.elFinder));
 })(jQuery)
-

@@ -285,6 +285,13 @@ function display_admin_notice() {
                             </div>
                         </div>
                         
+                        <!-- Nested Field Mapping Section -->
+                        <div id="jpi-nested-field-mapping" class="jpi-nested-field-mapping-section" style="display: none;">
+                            <div class="jpi-nested-mapping-placeholder">
+                                <p><?php esc_html_e('Enhanced nested field mapping will appear here after uploading a JSON file with nested structure.', 'json-post-importer'); ?></p>
+                            </div>
+                        </div>
+                        
                         <!-- Import Options Section -->
                         <div id="jpi-import-options" class="jpi-import-options-section" style="display: none;">
                             <h3><?php esc_html_e('Import Options', 'json-post-importer'); ?></h3>

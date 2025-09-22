@@ -1,0 +1,372 @@
+/* Nested Field Mapping Styles for JSON Post Importer */
+
+.jpi-nested-field-mapping-section {
+    margin-top: 20px;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-radius: 4px;
+    padding: 20px;
+}
+
+.jpi-nested-mapping-container {
+    max-width: 100%;
+}
+
+/* Configuration Section */
+.jpi-config-section {
+    background: #f8f9fa;
+    border: 1px solid #e1e5e9;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 20px;
+}
+
+.jpi-config-row {
+    margin-bottom: 15px;
+}
+
+.jpi-config-row:last-child {
+    margin-bottom: 0;
+}
+
+.jpi-config-row label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 5px;
+}
+
+.jpi-config-row input[type="text"] {
+    width: 300px;
+}
+
+.jpi-config-row input[type="checkbox"] {
+    margin-right: 8px;
+}
+
+/* Nested Content Layout */
+.jpi-nested-content {
+    display: flex;
+    gap: 20px;
+    margin-top: 20px;
+}
+
+.jpi-tree-section {
+    flex: 1;
+    min-width: 0;
+}
+
+.jpi-mappings-section {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Tree View Styles */
+.jpi-tree-container {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    max-height: 500px;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.jpi-tree-node {
+    margin: 2px 0;
+    border-radius: 3px;
+    transition: background-color 0.2s ease;
+}
+
+.jpi-tree-node:hover {
+    background-color: #f0f0f1;
+}
+
+.jpi-tree-node.leaf-node:hover {
+    background-color: #e8f4fd;
+    cursor: pointer;
+}
+
+.jpi-node-content {
+    display: flex;
+    align-items: center;
+    padding: 4px 8px;
+    gap: 8px;
+}
+
+.jpi-tree-toggle {
+    cursor: pointer;
+    user-select: none;
+    font-family: monospace;
+    font-size: 12px;
+    width: 16px;
+    text-align: center;
+    color: #666;
+}
+
+.jpi-tree-toggle:hover {
+    color: #0073aa;
+}
+
+.jpi-tree-spacer {
+    width: 16px;
+}
+
+.jpi-node-key {
+    font-weight: 600;
+    color: #0073aa;
+    font-family: 'Courier New', monospace;
+    font-size: 13px;
+}
+
+.jpi-node-preview {
+    color: #666;
+    font-style: italic;
+    font-size: 12px;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.jpi-map-field {
+    font-size: 11px;
+    padding: 2px 8px;
+    height: auto;
+    line-height: 1.2;
+}
+
+.jpi-tree-children {
+    margin-left: 20px;
+    border-left: 1px dotted #ccc;
+    padding-left: 10px;
+}
+
+/* Tree Node Depth Styling */
+.jpi-tree-node[data-depth="0"] .jpi-node-key {
+    font-size: 14px;
+    font-weight: 700;
+}
+
+.jpi-tree-node[data-depth="1"] .jpi-node-key {
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.jpi-tree-node[data-depth="2"] .jpi-node-key {
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.jpi-tree-node[data-depth="3"] .jpi-node-key,
+.jpi-tree-node[data-depth="4"] .jpi-node-key,
+.jpi-tree-node[data-depth="5"] .jpi-node-key {
+    font-size: 11px;
+    font-weight: 400;
+}
+
+/* Field Mappings Section */
+.jpi-mappings-section h4 {
+    margin-top: 0;
+    margin-bottom: 15px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #ddd;
+}
+
+#jpi-selected-mappings {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    min-height: 200px;
+    padding: 15px;
+}
+
+.jpi-path-mapping {
+    background: #f8f9fa;
+    border: 1px solid #e1e5e9;
+    border-radius: 4px;
+    padding: 15px;
+    margin-bottom: 15px;
+}
+
+.jpi-path-mapping:last-child {
+    margin-bottom: 0;
+}
+
+.jpi-path-info {
+    margin-bottom: 10px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+.jpi-path-info strong {
+    color: #0073aa;
+    font-family: 'Courier New', monospace;
+}
+
+.jpi-path-preview {
+    display: block;
+    color: #666;
+    font-style: italic;
+    font-size: 12px;
+    margin-top: 5px;
+}
+
+.jpi-mapping-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.jpi-mapping-type {
+    min-width: 180px;
+}
+
+.jpi-mapping-target {
+    flex: 1;
+    min-width: 200px;
+}
+
+.jpi-remove-mapping {
+    color: #d63638;
+    border-color: #d63638;
+    flex-shrink: 0;
+}
+
+.jpi-remove-mapping:hover {
+    background-color: #d63638;
+    color: #fff;
+}
+
+/* Validation Feedback */
+#jpi-nested-validation-feedback {
+    margin-bottom: 20px;
+}
+
+#jpi-nested-validation-feedback .notice {
+    margin: 0 0 10px 0;
+}
+
+#jpi-nested-validation-feedback .notice:last-child {
+    margin-bottom: 0;
+}
+
+#jpi-nested-validation-feedback ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+#jpi-nested-validation-feedback li {
+    margin-bottom: 5px;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .jpi-nested-content {
+        flex-direction: column;
+    }
+    
+    .jpi-tree-section,
+    .jpi-mappings-section {
+        flex: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .jpi-config-row input[type="text"] {
+        width: 100%;
+        max-width: 400px;
+    }
+    
+    .jpi-mapping-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .jpi-mapping-type,
+    .jpi-mapping-target {
+        min-width: 0;
+        width: 100%;
+    }
+    
+    .jpi-tree-container {
+        max-height: 300px;
+    }
+}
+
+/* Loading States */
+.jpi-nested-loading {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+}
+
+.jpi-nested-loading .spinner {
+    float: none;
+    margin: 0 auto 10px;
+}
+
+/* Empty States */
+.jpi-nested-empty {
+    text-align: center;
+    padding: 40px;
+    color: #666;
+    font-style: italic;
+}
+
+/* Success/Error States */
+.jpi-nested-success {
+    color: #00a32a;
+    font-weight: 600;
+}
+
+.jpi-nested-error {
+    color: #d63638;
+    font-weight: 600;
+}
+
+/* Animation for tree expansion */
+.jpi-tree-children {
+    transition: all 0.2s ease-in-out;
+}
+
+/* Highlight selected paths */
+.jpi-tree-node.selected {
+    background-color: #e8f4fd;
+    border: 1px solid #0073aa;
+}
+
+.jpi-tree-node.selected .jpi-node-key {
+    color: #0073aa;
+    font-weight: 700;
+}
+
+/* Field type indicators */
+.jpi-field-type-indicator {
+    display: inline-block;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    margin-left: 8px;
+}
+
+.jpi-field-type-standard {
+    background-color: #e8f4fd;
+    color: #0073aa;
+}
+
+.jpi-field-type-yoast {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.jpi-field-type-custom {
+    background-color: #d1ecf1;
+    color: #0c5460;
+}
+
+.jpi-field-type-taxonomy {
+    background-color: #d4edda;
+    color: #155724;
+}

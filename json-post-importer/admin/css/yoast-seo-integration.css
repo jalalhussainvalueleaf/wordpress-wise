@@ -1,0 +1,475 @@
+/**
+ * Yoast SEO Integration Styles for JSON Post Importer
+ */
+
+/* Yoast SEO Section */
+#yoast-seo-mapping {
+    margin: 20px 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+}
+
+#yoast-seo-mapping .section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #ddd;
+}
+
+#yoast-seo-mapping .section-header h3 {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+}
+
+#yoast-seo-mapping .section-header .dashicons {
+    color: #ff6900; /* Yoast orange */
+}
+
+#toggle-yoast-section {
+    background: none;
+    border: none;
+    padding: 0;
+    margin-left: 10px;
+    cursor: pointer;
+    color: #666;
+}
+
+#toggle-yoast-section:hover {
+    color: #333;
+}
+
+.section-actions {
+    display: flex;
+    gap: 10px;
+}
+
+/* Yoast Status Indicator */
+.yoast-status-indicator {
+    padding: 10px 20px;
+    background: #f0f0f1;
+    border-bottom: 1px solid #ddd;
+}
+
+#yoast-status-message.yoast-active {
+    color: #00a32a;
+    font-weight: 600;
+}
+
+#yoast-status-message.yoast-inactive {
+    color: #d63638;
+    font-weight: 600;
+}
+
+#yoast-status-message.yoast-active::before {
+    content: "✓ ";
+}
+
+#yoast-status-message.yoast-inactive::before {
+    content: "⚠ ";
+}
+
+/* Yoast Fields Container */
+.yoast-fields-grid {
+    padding: 20px;
+    display: grid;
+    gap: 25px;
+}
+
+.yoast-field-category {
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.yoast-field-category h4 {
+    margin: 0;
+    padding: 12px 15px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e0e0e0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+/* Individual Field Rows */
+.yoast-field-row {
+    display: grid;
+    grid-template-columns: 2fr 2fr 2fr 1fr;
+    gap: 15px;
+    padding: 15px;
+    border-bottom: 1px solid #f0f0f0;
+    align-items: center;
+}
+
+.yoast-field-row:last-child {
+    border-bottom: none;
+}
+
+.field-info label {
+    font-weight: 600;
+    color: #333;
+    display: block;
+    margin-bottom: 4px;
+}
+
+.field-limit {
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+}
+
+.required {
+    color: #d63638;
+    font-weight: bold;
+}
+
+.field-mapping select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.field-preview input {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #f9f9f9;
+    font-size: 12px;
+    color: #666;
+}
+
+/* Validation Status */
+.field-validation {
+    text-align: center;
+}
+
+.validation-status {
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.validation-status.valid {
+    color: #00a32a;
+}
+
+.validation-status.invalid {
+    color: #d63638;
+}
+
+.validation-status.warning {
+    color: #dba617;
+}
+
+.validation-status .dashicons {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+}
+
+/* SEO Preview */
+.preview-container {
+    padding: 20px;
+    background: #f8f9fa;
+    border-top: 1px solid #ddd;
+}
+
+.seo-preview h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+}
+
+.search-preview {
+    margin-bottom: 25px;
+}
+
+.search-result {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 15px;
+    max-width: 600px;
+}
+
+.search-url {
+    color: #1a73e8;
+    font-size: 14px;
+    margin-bottom: 4px;
+}
+
+.search-title {
+    color: #1a0dab;
+    font-size: 18px;
+    font-weight: 400;
+    margin-bottom: 4px;
+    cursor: pointer;
+}
+
+.search-title:hover {
+    text-decoration: underline;
+}
+
+.search-description {
+    color: #4d5156;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+/* Social Media Previews */
+.social-previews {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.facebook-preview,
+.twitter-preview {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.facebook-preview h5,
+.twitter-preview h5 {
+    margin: 0;
+    padding: 10px 15px;
+    background: #f0f2f5;
+    font-size: 14px;
+    font-weight: 600;
+    border-bottom: 1px solid #ddd;
+}
+
+.twitter-preview h5 {
+    background: #f7f9fa;
+}
+
+.social-card {
+    padding: 15px;
+}
+
+.social-card img {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.social-title {
+    font-weight: 600;
+    font-size: 16px;
+    margin-bottom: 6px;
+    color: #333;
+}
+
+.social-description {
+    font-size: 14px;
+    color: #666;
+    line-height: 1.4;
+}
+
+/* SEO Score */
+.seo-score-container {
+    padding: 20px;
+    background: #f8f9fa;
+    border-top: 1px solid #ddd;
+}
+
+.seo-score {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    padding: 20px;
+    max-width: 400px;
+}
+
+.seo-score h4 {
+    margin: 0 0 15px 0;
+    color: #333;
+}
+
+.score-display {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.score-circle {
+    width: 80px;
+    height: 80px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 18px;
+    font-weight: bold;
+    color: #fff;
+}
+
+.seo-score.score-good .score-circle {
+    background: #00a32a;
+}
+
+.seo-score.score-ok .score-circle {
+    background: #dba617;
+}
+
+.seo-score.score-poor .score-circle {
+    background: #d63638;
+}
+
+.score-status {
+    font-size: 16px;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+
+.seo-score.score-good .score-status {
+    color: #00a32a;
+}
+
+.seo-score.score-ok .score-status {
+    color: #dba617;
+}
+
+.seo-score.score-poor .score-status {
+    color: #d63638;
+}
+
+/* SEO Recommendations */
+.seo-recommendations h5 {
+    margin: 0 0 10px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.seo-recommendations ul {
+    margin: 0;
+    padding-left: 20px;
+}
+
+.seo-recommendations li {
+    margin-bottom: 6px;
+    font-size: 13px;
+    color: #666;
+    line-height: 1.4;
+}
+
+/* Notices */
+.yoast-notice {
+    margin: 10px 20px;
+}
+
+.yoast-loading {
+    margin: 10px 20px;
+}
+
+/* Responsive Design */
+@media (max-width: 1200px) {
+    .yoast-field-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .field-info,
+    .field-mapping,
+    .field-preview,
+    .field-validation {
+        width: 100%;
+    }
+    
+    .social-previews {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    #yoast-seo-mapping .section-header {
+        flex-direction: column;
+        gap: 15px;
+        align-items: flex-start;
+    }
+    
+    .section-actions {
+        width: 100%;
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+    
+    .yoast-fields-grid {
+        padding: 15px;
+    }
+    
+    .score-display {
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+}
+
+/* Animation */
+.yoast-field-row {
+    transition: background-color 0.2s ease;
+}
+
+.yoast-field-row:hover {
+    background-color: #f9f9f9;
+}
+
+.validation-status {
+    transition: all 0.2s ease;
+}
+
+/* Focus States */
+.field-mapping select:focus,
+.field-preview input:focus {
+    border-color: #ff6900;
+    box-shadow: 0 0 0 1px #ff6900;
+    outline: none;
+}
+
+/* Button Styles */
+.section-actions .button {
+    font-size: 13px;
+    height: auto;
+    padding: 6px 12px;
+}
+
+.section-actions .button:hover {
+    background-color: #f0f0f1;
+    border-color: #999;
+}
+
+/* Loading States */
+.yoast-loading .notice {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.yoast-loading .notice::before {
+    content: "";
+    width: 16px;
+    height: 16px;
+    border: 2px solid #f3f3f3;
+    border-top: 2px solid #ff6900;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

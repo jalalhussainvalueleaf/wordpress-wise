@@ -42,12 +42,35 @@ class JSON_Post_Importer_Admin {
      */
     private $wordpress_formatter;
 
+    /**
+     * The nested handler instance
+     *
+     * @var JSON_Post_Importer_Nested_Handler
+     */
+    private $nested_handler;
+
+    /**
+     * The Yoast SEO integration instance
+     *
+     * @var JSON_Post_Importer_Yoast_SEO
+     */
+    private $yoast_seo;
+
+    /**
+     * Last duplicate detection method used
+     *
+     * @var string
+     */
+    private $last_duplicate_detection_method;
+
     public function __construct($plugin_name, $version) {
         $this->plugin_name = $plugin_name;
         $this->version = $version;
         $this->post_creator = new JSON_Post_Creator();
         $this->logger = new JSON_Post_Importer_Logger();
         $this->wordpress_formatter = new JSON_Post_Importer_WordPress_Formatter();
+        $this->nested_handler = new JSON_Post_Importer_Nested_Handler();
+        $this->yoast_seo = new JSON_Post_Importer_Yoast_SEO();
         
         // Register AJAX handlers
         add_action('wp_ajax_jpi_handle_upload', array($this, 'handle_ajax_upload'));
@@ -76,6 +99,28 @@ class JSON_Post_Importer_Admin {
         add_action('wp_ajax_jpi_get_log_stats', array($this, 'get_log_stats_ajax'));
         add_action('wp_ajax_jpi_download_log', array($this, 'download_log_ajax'));
         add_action('admin_post_jpi_handle_upload', array($this, 'handle_file_upload'));
+        
+        // Nested field mapping AJAX handlers
+        add_action('wp_ajax_jpi_extract_nested_fields', array($this, 'extract_nested_fields_ajax'));
+        add_action('wp_ajax_jpi_validate_nested_paths', array($this, 'validate_nested_paths_ajax'));
+        add_action('wp_ajax_jpi_preview_nested_mapping', array($this, 'preview_nested_mapping_ajax'));
+        
+        // Yoast SEO AJAX handlers
+        add_action('wp_ajax_jpi_get_yoast_fields', array($this, 'get_yoast_fields_ajax'));
+        add_action('wp_ajax_jpi_auto_detect_yoast_fields', array($this, 'auto_detect_yoast_fields_ajax'));
+        add_action('wp_ajax_jpi_validate_yoast_fields', array($this, 'validate_yoast_fields_ajax'));
+        add_action('wp_ajax_jpi_preview_yoast_seo', array($this, 'preview_yoast_seo_ajax'));
+        add_action('wp_ajax_jpi_calculate_seo_score', array($this, 'calculate_seo_score_ajax'));
+        add_action('wp_ajax_jpi_migrate_yoast_data', array($this, 'migrate_yoast_data_ajax'));
+        
+        // Enhanced field mapping AJAX handlers
+        add_action('wp_ajax_jpi_check_yoast_status', array($this, 'check_yoast_status_ajax'));
+        add_action('wp_ajax_jpi_auto_detect_enhanced_mappings', array($this, 'auto_detect_enhanced_mappings_ajax'));
+        add_action('wp_ajax_jpi_validate_enhanced_mappings', array($this, 'validate_enhanced_mappings_ajax'));
+        add_action('wp_ajax_jpi_preview_enhanced_mappings', array($this, 'preview_enhanced_mappings_ajax'));
+        add_action('wp_ajax_jpi_save_mapping_preset', array($this, 'save_mapping_preset_ajax'));
+        add_action('wp_ajax_jpi_load_mapping_preset', array($this, 'load_mapping_preset_ajax'));
+        add_action('wp_ajax_jpi_delete_mapping_preset', array($this, 'delete_mapping_preset_ajax'));
         
         // Schedule cleanup of old import data
         add_action('jpi_cleanup_old_imports', array($this, 'cleanup_old_imports'));
@@ -157,6 +202,33 @@ class JSON_Post_Importer_Admin {
             $this->version,
             'all'
         );
+        
+        // Nested field mapping styles
+        wp_enqueue_style(
+            $this->plugin_name . '-nested-mapping',
+            plugin_dir_url(dirname(__FILE__)) . 'admin/css/nested-field-mapping.css',
+            array(),
+            $this->version,
+            'all'
+        );
+        
+        // Yoast SEO integration styles
+        wp_enqueue_style(
+            $this->plugin_name . '-yoast-seo',
+            plugin_dir_url(dirname(__FILE__)) . 'admin/css/yoast-seo-integration.css',
+            array(),
+            $this->version,
+            'all'
+        );
+        
+        // Enhanced field mapping styles
+        wp_enqueue_style(
+            $this->plugin_name . '-enhanced-mapping',
+            plugin_dir_url(dirname(__FILE__)) . 'admin/css/enhanced-field-mapping.css',
+            array(),
+            $this->version,
+            'all'
+        );
     }
 
     public function enqueue_scripts($hook) {
@@ -174,6 +246,24 @@ class JSON_Post_Importer_Admin {
             false
         );
 
+        // Enqueue nested field mapping script
+        wp_enqueue_script(
+            $this->plugin_name . '-nested-mapping',
+            plugin_dir_url(dirname(__FILE__)) . 'admin/js/nested-field-mapping.js',
+            array('jquery', $this->plugin_name . '-field-mapping'),
+            $this->version,
+            false
+        );
+
+        // Enqueue Yoast SEO integration script
+        wp_enqueue_script(
+            $this->plugin_name . '-yoast-seo',
+            plugin_dir_url(dirname(__FILE__)) . 'admin/js/yoast-seo-integration.js',
+            array('jquery', $this->plugin_name . '-field-mapping'),
+            $this->version,
+            false
+        );
+
         // Enqueue logs script
         wp_enqueue_script(
             $this->plugin_name . '-logs',
@@ -183,11 +273,29 @@ class JSON_Post_Importer_Admin {
             false
         );
 
+        // Enqueue enhanced field mapping script
+        wp_enqueue_script(
+            $this->plugin_name . '-enhanced-mapping',
+            plugin_dir_url(dirname(__FILE__)) . 'admin/js/enhanced-field-mapping.js',
+            array('jquery', $this->plugin_name . '-field-mapping', $this->plugin_name . '-nested-mapping', $this->plugin_name . '-yoast-seo'),
+            $this->version,
+            false
+        );
+
         // Enqueue main admin script
         wp_enqueue_script(
             $this->plugin_name,
             plugin_dir_url(dirname(__FILE__)) . 'admin/js/json-post-importer-admin.js',
-            array('jquery', $this->plugin_name . '-field-mapping', $this->plugin_name . '-logs'),
+            array('jquery', $this->plugin_name . '-field-mapping', $this->plugin_name . '-yoast-seo', $this->plugin_name . '-logs'),
+            $this->version,
+            false
+        );
+
+        // Enqueue nested fields fix script
+        wp_enqueue_script(
+            $this->plugin_name . '-nested-fix',
+            plugin_dir_url(dirname(__FILE__)) . 'fix-nested-fields.js',
+            array('jquery', $this->plugin_name),
             $this->version,
             false
         );
@@ -207,6 +315,16 @@ class JSON_Post_Importer_Admin {
         foreach ($authors as $author) {
             $author_options[$author->ID] = $author->display_name;
         }
+
+        // Localize script with data for enhanced field mapping
+        wp_localize_script(
+            $this->plugin_name . '-enhanced-mapping',
+            'jpi_ajax',
+            array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('jpi_nonce')
+            )
+        );
 
         // Localize script with data
         wp_localize_script(
@@ -462,15 +580,41 @@ class JSON_Post_Importer_Admin {
         
         // Get the import data
         $json_data = isset($_POST['json_data']) ? json_decode(stripslashes($_POST['json_data']), true) : null;
-        $import_settings = isset($_POST['import_settings']) ? $_POST['import_settings'] : array();
-        $field_mappings = isset($_POST['field_mappings']) ? $_POST['field_mappings'] : array();
+        
+        // Handle both JSON string and array formats for import_settings
+        $import_settings = array();
+        if (isset($_POST['import_settings'])) {
+            if (is_string($_POST['import_settings'])) {
+                $import_settings = json_decode(stripslashes($_POST['import_settings']), true) ?: array();
+            } else {
+                $import_settings = $_POST['import_settings'];
+            }
+        }
+        
+        // Handle both JSON string and array formats for field_mappings
+        $field_mappings = array();
+        if (isset($_POST['field_mappings'])) {
+            if (is_string($_POST['field_mappings'])) {
+                $field_mappings = json_decode(stripslashes($_POST['field_mappings']), true) ?: array();
+            } else {
+                $field_mappings = $_POST['field_mappings'];
+            }
+        }
         
         // Validate required data
         if (empty($json_data)) {
             wp_send_json_error(array('message' => __('No JSON data provided for import.', 'json-post-importer')), 400);
         }
         
-        if (empty($field_mappings['post_title'])) {
+        // Validate field mappings - check both legacy and nested formats
+        $has_title_mapping = false;
+        if (!empty($field_mappings['post_title'])) {
+            $has_title_mapping = true;
+        } elseif (!empty($field_mappings['standard']['post_title'])) {
+            $has_title_mapping = true;
+        }
+        
+        if (!$has_title_mapping) {
             wp_send_json_error(array('message' => __('Post title mapping is required.', 'json-post-importer')), 400);
         }
         
@@ -639,19 +783,24 @@ class JSON_Post_Importer_Admin {
     }
 
     /**
-     * Process batch
+     * Process batch with enhanced field type tracking and nested data extraction
      */
     public function process_batch() {
-        check_ajax_referer('jpi_ajax_nonce', 'nonce');
+        try {
+            check_ajax_referer('jpi_ajax_nonce', 'nonce');
 
-        if (!current_user_can('upload_files')) {
-            wp_send_json_error(array('message' => __('You do not have sufficient permissions.', 'json-post-importer')));
-        }
+            if (!current_user_can('upload_files')) {
+                wp_send_json_error(array('message' => __('You do not have sufficient permissions.', 'json-post-importer')));
+            }
 
         $import_id = isset($_POST['import_id']) ? sanitize_text_field($_POST['import_id']) : '';
         $batch_number = isset($_POST['batch_number']) ? intval($_POST['batch_number']) : 0;
         
+        // Log batch processing start for debugging
+        error_log('JSON Post Importer: Starting batch processing - Import ID: ' . $import_id . ', Batch: ' . $batch_number);
+        
         if (empty($import_id)) {
+            error_log('JSON Post Importer: Invalid import ID provided');
             wp_send_json_error(array('message' => __('Invalid import ID.', 'json-post-importer')));
         }
         
@@ -667,80 +816,196 @@ class JSON_Post_Importer_Admin {
             wp_send_json_error(array('message' => __('Import was cancelled.', 'json-post-importer')));
         }
         
-        // Calculate batch range
-        $batch_size = $import_data['batch_size'];
-        $start_index = $batch_number * $batch_size;
-        $end_index = min($start_index + $batch_size, $import_data['total_items']);
+        // Calculate batch range - ensure all values are integers
+        $batch_size = intval($import_data['batch_size']);
+        $total_items = intval($import_data['total_items']);
+        $start_index = intval($batch_number * $batch_size);
+        $end_index = min($start_index + $batch_size, $total_items);
         $batch_items = array_slice($import_data['items'], $start_index, $batch_size);
         
+        // Enhanced batch results with field type tracking
         $batch_results = array(
             'created' => 0,
             'updated' => 0,
             'skipped' => 0,
-            'errors' => array()
+            'errors' => array(),
+            'field_type_progress' => array(
+                'standard' => array('processed' => 0, 'errors' => 0),
+                'yoast_seo' => array('processed' => 0, 'errors' => 0),
+                'custom' => array('processed' => 0, 'errors' => 0),
+                'wrapper_metadata' => array('processed' => 0, 'errors' => 0),
+                'media' => array('processed' => 0, 'errors' => 0),
+                'taxonomies' => array('processed' => 0, 'errors' => 0)
+            ),
+            'duplicate_detection' => array(
+                'by_title' => 0,
+                'by_slug' => 0,
+                'by_meta' => 0,
+                'by_content_hash' => 0
+            ),
+            'nested_extraction_stats' => array(
+                'successful_extractions' => 0,
+                'failed_extractions' => 0,
+                'nested_paths_used' => array()
+            )
         );
         
-        // Process each item in the batch
+        // Process each item in the batch with enhanced tracking
         foreach ($batch_items as $index => $item) {
-            $item_index = $start_index + $index;
+            $item_index = intval($start_index) + intval($index);
             
             try {
-                $result = $this->process_single_item($item, $import_data['field_mappings'], $import_data['import_settings'], $item_index);
+                // Log the item being processed for debugging
+                error_log('JSON Post Importer: Processing item ' . $item_index . ' - ' . json_encode($item));
+                
+                // Use simplified processing to avoid complex dependencies
+                $options = array(
+                    'post_type' => $import_data['import_settings']['post_type'] ?? 'post',
+                    'post_status' => $import_data['import_settings']['post_status'] ?? 'draft',
+                    'update_existing' => $import_data['import_settings']['update_existing'] ?? false,
+                    'field_mappings' => $import_data['field_mappings'] ?? array(),
+                    'item_index' => $item_index
+                );
+                
+                // Check if post_creator exists
+                if (!$this->post_creator) {
+                    throw new Exception('Post creator not initialized');
+                }
+                
+                $result = $this->post_creator->create_or_update_post($item, $options);
                 
                 if (is_wp_error($result)) {
                     $batch_results['errors'][] = array(
                         'item_index' => $item_index,
                         'message' => $result->get_error_message(),
-                        'data' => $item
+                        'data' => $item,
+                        'error_type' => $result->get_error_code()
                     );
                     $batch_results['skipped']++;
+                    error_log('JSON Post Importer: Error processing item ' . $item_index . ' - ' . $result->get_error_message());
                 } else {
-                    if ($result['action'] === 'created') {
-                        $batch_results['created']++;
-                    } else {
+                    if (isset($result['action']) && $result['action'] === 'updated') {
                         $batch_results['updated']++;
+                    } else {
+                        $batch_results['created']++;
                     }
+                    
+                    // Track basic field processing success
+                    $batch_results['field_type_progress']['standard']['processed']++;
+                    
+                    error_log('JSON Post Importer: Successfully processed item ' . $item_index . ' - Post ID: ' . ($result['post_id'] ?? 'unknown'));
                 }
             } catch (Exception $e) {
                 $batch_results['errors'][] = array(
                     'item_index' => $item_index,
                     'message' => $e->getMessage(),
-                    'data' => $item
+                    'data' => $item,
+                    'error_type' => 'exception',
+                    'stack_trace' => $e->getTraceAsString()
                 );
                 $batch_results['skipped']++;
+                
+                // Log exception for debugging
+                $this->logger->error('Exception during batch processing', array(
+                    'item_index' => $item_index,
+                    'exception' => $e->getMessage(),
+                    'trace' => $e->getTraceAsString()
+                ));
             }
         }
         
         // Log batch completion
-        $this->logger->log_batch_processed($import_id, $batch_number + 1, $batch_results);
+        if (method_exists($this->logger, 'log_batch_processed_enhanced')) {
+            $this->logger->log_batch_processed_enhanced($import_id, $batch_number + 1, $batch_results);
+        } else {
+            error_log('JSON Post Importer: Batch ' . ($batch_number + 1) . ' completed - Created: ' . $batch_results['created'] . ', Updated: ' . $batch_results['updated'] . ', Skipped: ' . $batch_results['skipped']);
+        }
         
-        // Update import data
-        $import_data['processed_items'] += count($batch_items);
-        $import_data['created_posts'] += $batch_results['created'];
-        $import_data['updated_posts'] += $batch_results['updated'];
-        $import_data['skipped_posts'] += $batch_results['skipped'];
-        $import_data['errors'] = array_merge($import_data['errors'], $batch_results['errors']);
-        $import_data['current_batch'] = $batch_number + 1;
+        // Update import data with enhanced tracking - ensure all values are integers
+        $import_data['processed_items'] = intval($import_data['processed_items']) + count($batch_items);
+        $import_data['created_posts'] = intval($import_data['created_posts']) + intval($batch_results['created']);
+        $import_data['updated_posts'] = intval($import_data['updated_posts']) + intval($batch_results['updated']);
+        $import_data['skipped_posts'] = intval($import_data['skipped_posts']) + intval($batch_results['skipped']);
+        $import_data['errors'] = array_merge($import_data['errors'] ?? array(), $batch_results['errors']);
+        $import_data['current_batch'] = intval($batch_number) + 1;
         
-        // Check if import is complete
-        $is_complete = $import_data['processed_items'] >= $import_data['total_items'];
+        // Merge field type progress tracking
+        if (!isset($import_data['field_type_progress'])) {
+            $import_data['field_type_progress'] = array(
+                'standard' => array('processed' => 0, 'errors' => 0),
+                'yoast_seo' => array('processed' => 0, 'errors' => 0),
+                'custom' => array('processed' => 0, 'errors' => 0),
+                'wrapper_metadata' => array('processed' => 0, 'errors' => 0),
+                'media' => array('processed' => 0, 'errors' => 0),
+                'taxonomies' => array('processed' => 0, 'errors' => 0)
+            );
+        }
+        
+        foreach ($batch_results['field_type_progress'] as $field_type => $stats) {
+            $import_data['field_type_progress'][$field_type]['processed'] += $stats['processed'];
+            $import_data['field_type_progress'][$field_type]['errors'] += $stats['errors'];
+        }
+        
+        // Merge duplicate detection stats
+        if (!isset($import_data['duplicate_detection_stats'])) {
+            $import_data['duplicate_detection_stats'] = array(
+                'by_title' => 0,
+                'by_slug' => 0,
+                'by_meta' => 0,
+                'by_content_hash' => 0
+            );
+        }
+        
+        foreach ($batch_results['duplicate_detection'] as $method => $count) {
+            $import_data['duplicate_detection_stats'][$method] += $count;
+        }
+        
+        // Merge nested extraction stats
+        if (!isset($import_data['nested_extraction_stats'])) {
+            $import_data['nested_extraction_stats'] = array(
+                'successful_extractions' => 0,
+                'failed_extractions' => 0,
+                'nested_paths_used' => array()
+            );
+        }
+        
+        $import_data['nested_extraction_stats']['successful_extractions'] += $batch_results['nested_extraction_stats']['successful_extractions'];
+        $import_data['nested_extraction_stats']['failed_extractions'] += $batch_results['nested_extraction_stats']['failed_extractions'];
+        $import_data['nested_extraction_stats']['nested_paths_used'] = array_unique(array_merge(
+            $import_data['nested_extraction_stats']['nested_paths_used'],
+            $batch_results['nested_extraction_stats']['nested_paths_used']
+        ));
+        
+        // Check if import is complete - ensure integer comparison
+        $is_complete = intval($import_data['processed_items']) >= intval($import_data['total_items']);
         
         if ($is_complete) {
             $import_data['status'] = 'completed';
             $import_data['end_time'] = current_time('mysql');
             
             // Log completion
-            $this->logger->log_import_end($import_id, array(
-                'created_posts' => $import_data['created_posts'],
-                'updated_posts' => $import_data['updated_posts'],
-                'skipped_posts' => $import_data['skipped_posts'],
-                'error_count' => count($import_data['errors']),
-                'total_items' => $import_data['total_items'],
-                'processed_items' => $import_data['processed_items']
-            ));
+            if (method_exists($this->logger, 'log_import_end_enhanced')) {
+                $this->logger->log_import_end_enhanced($import_id, array(
+                    'created_posts' => $import_data['created_posts'],
+                    'updated_posts' => $import_data['updated_posts'],
+                    'skipped_posts' => $import_data['skipped_posts'],
+                    'error_count' => count($import_data['errors']),
+                    'total_items' => $import_data['total_items'],
+                    'processed_items' => $import_data['processed_items']
+                ));
+            } else {
+                error_log('JSON Post Importer: Import ' . $import_id . ' completed - Total: ' . $import_data['total_items'] . ', Created: ' . $import_data['created_posts'] . ', Updated: ' . $import_data['updated_posts']);
+            }
             
             // Save to history
-            $this->save_import_to_history($import_data);
+            $this->add_to_import_history(array(
+                'total_items' => $import_data['total_items'],
+                'created' => $import_data['created_posts'],
+                'updated' => $import_data['updated_posts'],
+                'skipped' => $import_data['skipped_posts'],
+                'errors' => $import_data['errors'],
+                'status' => $import_data['status']
+            ));
         }
         
         // Update transient
@@ -759,10 +1024,30 @@ class JSON_Post_Importer_Admin {
                 'error_count' => count($import_data['errors']),
                 'current_batch' => $import_data['current_batch'],
                 'total_batches' => $import_data['total_batches'],
-                'percentage' => round(($import_data['processed_items'] / $import_data['total_items']) * 100, 1)
+                'percentage' => round(($import_data['processed_items'] / $import_data['total_items']) * 100, 1),
+                'field_type_progress' => $import_data['field_type_progress'],
+                'duplicate_detection_stats' => $import_data['duplicate_detection_stats'] ?? array(),
+                'nested_extraction_stats' => $import_data['nested_extraction_stats'] ?? array()
             )
         ));
+        
+        } catch (Exception $e) {
+            error_log('JSON Post Importer: Fatal error in process_batch - ' . $e->getMessage() . ' - ' . $e->getTraceAsString());
+            wp_send_json_error(array(
+                'message' => 'Internal server error: ' . $e->getMessage(),
+                'error_type' => 'fatal_error',
+                'debug_info' => array(
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
+                )
+            ));
+        }
     }
+
+
+
+
 
     /**
      * Check batch status
@@ -946,9 +1231,16 @@ class JSON_Post_Importer_Admin {
     }
 
     /**
-     * Process a single item
+     * Process a single item (legacy method for backward compatibility)
      */
     private function process_single_item($item, $field_mappings, $import_settings, $item_index) {
+        return $this->process_single_item_enhanced($item, $field_mappings, $import_settings, $item_index);
+    }
+    
+    /**
+     * Process a single item with enhanced field type tracking and nested data extraction
+     */
+    private function process_single_item_enhanced($item, $field_mappings, $import_settings, $item_index) {
         if (!is_array($item) && !is_object($item)) {
             $this->logger->error('Invalid item type at index ' . $item_index, array('item' => $item));
             return new WP_Error('invalid_item', __('Item must be an array or object.', 'json-post-importer'));
@@ -959,108 +1251,625 @@ class JSON_Post_Importer_Admin {
         
         $this->logger->debug('Processing item at index ' . $item_index, array('item' => $item));
         
-        // Extract post data based on field mappings
-        $post_data = array();
+        // Initialize field processing stats
+        $field_processing_stats = array(
+            'standard' => array('processed' => 0, 'errors' => 0),
+            'yoast_seo' => array('processed' => 0, 'errors' => 0),
+            'custom' => array('processed' => 0, 'errors' => 0),
+            'wrapper_metadata' => array('processed' => 0, 'errors' => 0),
+            'media' => array('processed' => 0, 'errors' => 0),
+            'taxonomies' => array('processed' => 0, 'errors' => 0)
+        );
         
-        // Map standard fields
-        foreach ($field_mappings as $wp_field => $json_field) {
-            if (!empty($json_field) && isset($item[$json_field])) {
-                $post_data[$wp_field] = $item[$json_field];
+        // Initialize nested extraction stats
+        $nested_extraction_stats = array(
+            'successful' => 0,
+            'failed' => 0,
+            'paths_used' => array()
+        );
+        
+        // Prepare enhanced options for the post creator
+        $options = array_merge($import_settings, array(
+            'field_mappings' => $field_mappings,
+            'json_root_path' => isset($import_settings['json_root_path']) ? $import_settings['json_root_path'] : 'content',
+            'import_wrapper_meta' => isset($import_settings['import_wrapper_meta']) ? $import_settings['import_wrapper_meta'] : true,
+            'update_existing' => isset($import_settings['update_existing']) ? $import_settings['update_existing'] : true,
+            'post_type' => isset($import_settings['post_type']) ? $import_settings['post_type'] : 'post',
+            'post_status' => isset($import_settings['post_status']) ? $import_settings['post_status'] : 'draft',
+            'default_author' => get_current_user_id(),
+            'duplicate_detection_criteria' => isset($import_settings['duplicate_detection_criteria']) ? $import_settings['duplicate_detection_criteria'] : array('title'),
+            'enable_enhanced_duplicate_detection' => true,
+            'track_field_processing' => true,
+            'item_index' => $item_index
+        ));
+        
+        // Pre-process nested data extraction with error handling
+        try {
+            if (!empty($field_mappings) && is_array($field_mappings)) {
+                $extraction_result = $this->extract_nested_data_with_tracking($item, $field_mappings, $options);
+                
+                if (is_wp_error($extraction_result)) {
+                    $nested_extraction_stats['failed']++;
+                    $this->logger->warning('Nested data extraction failed for item ' . $item_index, array(
+                        'error' => $extraction_result->get_error_message(),
+                        'item' => $item
+                    ));
+                } else {
+                    $nested_extraction_stats['successful']++;
+                    $nested_extraction_stats['paths_used'] = array_merge(
+                        $nested_extraction_stats['paths_used'],
+                        $extraction_result['paths_used'] ?? array()
+                    );
+                    
+                    // Update options with extracted data
+                    $options['extracted_data'] = $extraction_result['data'] ?? array();
+                }
             }
+        } catch (Exception $e) {
+            $nested_extraction_stats['failed']++;
+            $this->logger->error('Exception during nested data extraction for item ' . $item_index, array(
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ));
         }
         
-        // Validate required fields
-        if (empty($post_data['post_title'])) {
-            $this->logger->warning('Missing post title at item index ' . $item_index, array('item' => $item));
-            return new WP_Error('missing_title', __('Post title is required.', 'json-post-importer'));
-        }
-        
-        // Set default values
-        $post_data['post_type'] = isset($import_settings['post_type']) ? $import_settings['post_type'] : 'post';
-        $post_data['post_status'] = isset($import_settings['post_status']) ? $import_settings['post_status'] : 'draft';
-        $post_data['post_author'] = get_current_user_id();
-        
-        // Check for existing post if update is enabled
-        $existing_post_id = null;
-        if (!empty($import_settings['update_existing'])) {
-            $existing_post = get_page_by_title($post_data['post_title'], OBJECT, $post_data['post_type']);
-            if ($existing_post) {
-                $existing_post_id = $existing_post->ID;
-                $post_data['ID'] = $existing_post_id;
+        // Enhanced duplicate detection with multiple criteria
+        $duplicate_detection_method = null;
+        try {
+            $existing_post_id = $this->find_existing_post_enhanced($item, $options);
+            if ($existing_post_id) {
+                $duplicate_detection_method = $this->get_last_duplicate_detection_method();
+                $this->logger->debug('Found existing post using enhanced detection', array(
+                    'post_id' => $existing_post_id,
+                    'method' => $duplicate_detection_method,
+                    'item_index' => $item_index
+                ));
             }
+        } catch (Exception $e) {
+            $this->logger->error('Exception during enhanced duplicate detection for item ' . $item_index, array(
+                'exception' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ));
         }
         
-        // Insert or update post
-        if ($existing_post_id) {
-            $post_id = wp_update_post($post_data);
-            $action = 'updated';
+        // Use the JSON Post Creator to handle the import with enhanced tracking
+        $result = $this->post_creator->create_or_update_post($item, $options);
+        
+        if (is_wp_error($result)) {
+            // Extract field-specific error information if available
+            $field_errors = array();
+            $error_data = $result->get_error_data();
+            
+            if (is_array($error_data) && isset($error_data['field_errors'])) {
+                $field_errors = $error_data['field_errors'];
+            } else {
+                // Try to categorize the error based on the error message
+                $error_message = $result->get_error_message();
+                if (strpos($error_message, 'yoast') !== false || strpos($error_message, 'seo') !== false) {
+                    $field_errors['yoast_seo'] = 1;
+                } elseif (strpos($error_message, 'media') !== false || strpos($error_message, 'image') !== false) {
+                    $field_errors['media'] = 1;
+                } elseif (strpos($error_message, 'taxonomy') !== false || strpos($error_message, 'category') !== false || strpos($error_message, 'tag') !== false) {
+                    $field_errors['taxonomies'] = 1;
+                } elseif (strpos($error_message, 'meta') !== false || strpos($error_message, 'custom') !== false) {
+                    $field_errors['custom'] = 1;
+                } else {
+                    $field_errors['standard'] = 1;
+                }
+            }
+            
+            $this->logger->error('Failed to create/update post at index ' . $item_index, array(
+                'item' => $item,
+                'error' => $result->get_error_message(),
+                'field_errors' => $field_errors
+            ));
+            
+            // Add field error information to the WP_Error
+            $error_data = $result->get_error_data() ?: array();
+            $error_data['field_errors'] = $field_errors;
+            $result->add_data($error_data);
+            
+            return $result;
+        }
+        
+        // Extract field processing stats from the result if available
+        if (isset($result['field_processing_stats'])) {
+            $field_processing_stats = $result['field_processing_stats'];
         } else {
-            $post_id = wp_insert_post($post_data);
-            $action = 'created';
+            // Estimate field processing based on successful import
+            $field_processing_stats['standard']['processed'] = 1; // At least one standard field processed
+            
+            // Check if Yoast SEO fields were likely processed
+            if (!empty($field_mappings['yoast_seo']) || $this->has_yoast_seo_data($item)) {
+                $field_processing_stats['yoast_seo']['processed'] = 1;
+            }
+            
+            // Check if custom fields were likely processed
+            if (!empty($field_mappings['custom']) || $this->has_custom_field_data($item)) {
+                $field_processing_stats['custom']['processed'] = 1;
+            }
+            
+            // Check if wrapper metadata was likely processed
+            if ($options['import_wrapper_meta'] && $this->has_wrapper_metadata($item)) {
+                $field_processing_stats['wrapper_metadata']['processed'] = 1;
+            }
+            
+            // Check if media was likely processed
+            if ($this->has_media_data($item)) {
+                $field_processing_stats['media']['processed'] = 1;
+            }
+            
+            // Check if taxonomies were likely processed
+            if ($this->has_taxonomy_data($item)) {
+                $field_processing_stats['taxonomies']['processed'] = 1;
+            }
         }
         
-        if (is_wp_error($post_id)) {
-            return $post_id;
-        }
+        $this->logger->debug('Successfully processed item at index ' . $item_index, array(
+            'post_id' => $result['id'],
+            'action' => $result['updated'] ? 'updated' : 'created',
+            'field_processing_stats' => $field_processing_stats,
+            'nested_extraction_stats' => $nested_extraction_stats,
+            'duplicate_detection_method' => $duplicate_detection_method
+        ));
         
         return array(
-            'post_id' => $post_id,
-            'action' => $action
+            'post_id' => $result['id'],
+            'action' => $result['updated'] ? 'updated' : 'created',
+            'field_processing_stats' => $field_processing_stats,
+            'nested_extraction_stats' => $nested_extraction_stats,
+            'duplicate_detection_method' => $duplicate_detection_method
         );
     }
 
     /**
-     * Log import event using the new logger system
+     * Extract nested data with tracking for enhanced processing
      */
-    private function log_import_event($import_id, $level, $message, $context = array()) {
-        $context['import_id'] = $import_id;
+    private function extract_nested_data_with_tracking($item, $field_mappings, $options) {
+        $extracted_data = array();
+        $paths_used = array();
+        $extraction_errors = array();
         
-        switch ($level) {
-            case 'error':
-                $this->logger->error($message, $context);
-                break;
-            case 'warning':
-                $this->logger->warning($message, $context);
-                break;
-            case 'debug':
-                $this->logger->debug($message, $context);
-                break;
-            default:
-                $this->logger->info($message, $context);
-                break;
+        try {
+            // Use the nested handler to process field mappings
+            $processed_data = $this->nested_handler->process_field_mappings($item, $field_mappings, $options);
+            
+            if (is_wp_error($processed_data)) {
+                return $processed_data;
+            }
+            
+            $extracted_data = $processed_data;
+            
+            // Track which nested paths were successfully used
+            if (!empty($field_mappings)) {
+                foreach ($field_mappings as $field_type => $mappings) {
+                    if (is_array($mappings)) {
+                        foreach ($mappings as $wp_field => $json_path) {
+                            if (is_string($json_path) && strpos($json_path, '.') !== false) {
+                                $paths_used[] = $json_path;
+                            }
+                        }
+                    }
+                }
+            }
+            
+            return array(
+                'data' => $extracted_data,
+                'paths_used' => array_unique($paths_used),
+                'errors' => $extraction_errors
+            );
+            
+        } catch (Exception $e) {
+            return new WP_Error('nested_extraction_failed', 'Failed to extract nested data: ' . $e->getMessage(), array(
+                'exception' => $e->getMessage(),
+                'paths_attempted' => $paths_used
+            ));
         }
     }
-
+    
     /**
-     * Save import to history
+     * Enhanced duplicate detection with multiple criteria
      */
-    private function save_import_to_history($import_data) {
-        $history_entry = array(
-            'import_id' => $import_data['id'],
-            'start_time' => $import_data['start_time'],
-            'end_time' => isset($import_data['end_time']) ? $import_data['end_time'] : '',
-            'status' => $import_data['status'],
-            'total_items' => $import_data['total_items'],
-            'processed_items' => $import_data['processed_items'],
-            'created_posts' => $import_data['created_posts'],
-            'updated_posts' => $import_data['updated_posts'],
-            'skipped_posts' => $import_data['skipped_posts'],
-            'error_count' => count($import_data['errors']),
-            'cancelled' => $import_data['cancelled']
+    private function find_existing_post_enhanced($item, $options) {
+        $criteria = $options['duplicate_detection_criteria'] ?? array('title');
+        $post_type = $options['post_type'] ?? 'post';
+        
+        // Store the method used for tracking
+        $this->last_duplicate_detection_method = null;
+        
+        foreach ($criteria as $criterion) {
+            $existing_id = null;
+            
+            switch ($criterion) {
+                case 'title':
+                    $existing_id = $this->find_by_title($item, $post_type);
+                    if ($existing_id) {
+                        $this->last_duplicate_detection_method = 'by_title';
+                    }
+                    break;
+                    
+                case 'slug':
+                    $existing_id = $this->find_by_slug($item, $post_type);
+                    if ($existing_id) {
+                        $this->last_duplicate_detection_method = 'by_slug';
+                    }
+                    break;
+                    
+                case 'meta_field':
+                    $existing_id = $this->find_by_meta_field($item, $options);
+                    if ($existing_id) {
+                        $this->last_duplicate_detection_method = 'by_meta';
+                    }
+                    break;
+                    
+                case 'content_hash':
+                    $existing_id = $this->find_by_content_hash($item, $post_type);
+                    if ($existing_id) {
+                        $this->last_duplicate_detection_method = 'by_content_hash';
+                    }
+                    break;
+            }
+            
+            if ($existing_id) {
+                return $existing_id;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Find existing post by title
+     */
+    private function find_by_title($item, $post_type) {
+        $title = $this->extract_title_from_item($item);
+        
+        if (empty($title)) {
+            return false;
+        }
+        
+        $args = array(
+            'title' => $title,
+            'post_type' => $post_type,
+            'post_status' => 'any',
+            'numberposts' => 1,
+            'fields' => 'ids'
         );
         
-        // Get existing history
+        $posts = get_posts($args);
+        return !empty($posts) ? $posts[0] : false;
+    }
+    
+    /**
+     * Find existing post by slug
+     */
+    private function find_by_slug($item, $post_type) {
+        $slug = $this->extract_slug_from_item($item);
+        
+        if (empty($slug)) {
+            return false;
+        }
+        
+        $args = array(
+            'name' => $slug,
+            'post_type' => $post_type,
+            'post_status' => 'any',
+            'numberposts' => 1,
+            'fields' => 'ids'
+        );
+        
+        $posts = get_posts($args);
+        return !empty($posts) ? $posts[0] : false;
+    }
+    
+    /**
+     * Find existing post by meta field
+     */
+    private function find_by_meta_field($item, $options) {
+        $meta_key = $options['duplicate_meta_key'] ?? '_import_id';
+        $meta_value = $this->extract_meta_value_from_item($item, $meta_key);
+        
+        if (empty($meta_value)) {
+            return false;
+        }
+        
+        global $wpdb;
+        $post_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = %s AND meta_value = %s LIMIT 1",
+            $meta_key,
+            $meta_value
+        ));
+        
+        return $post_id ? (int) $post_id : false;
+    }
+    
+    /**
+     * Find existing post by content hash
+     */
+    private function find_by_content_hash($item, $post_type) {
+        $content = $this->extract_content_from_item($item);
+        
+        if (empty($content)) {
+            return false;
+        }
+        
+        $content_hash = md5($content);
+        
+        global $wpdb;
+        $post_id = $wpdb->get_var($wpdb->prepare(
+            "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = '_content_hash' AND meta_value = %s LIMIT 1",
+            $content_hash
+        ));
+        
+        return $post_id ? (int) $post_id : false;
+    }
+    
+    /**
+     * Extract title from item using various possible field names
+     */
+    private function extract_title_from_item($item) {
+        $title_fields = array('title', 'post_title', 'name', 'heading');
+        
+        foreach ($title_fields as $field) {
+            if (!empty($item[$field])) {
+                return sanitize_text_field($item[$field]);
+            }
+        }
+        
+        // Try nested content
+        if (!empty($item['content']) && is_array($item['content'])) {
+            foreach ($title_fields as $field) {
+                if (!empty($item['content'][$field])) {
+                    return sanitize_text_field($item['content'][$field]);
+                }
+            }
+        }
+        
+        return '';
+    }
+    
+    /**
+     * Extract slug from item using various possible field names
+     */
+    private function extract_slug_from_item($item) {
+        $slug_fields = array('slug', 'post_name', 'name');
+        
+        foreach ($slug_fields as $field) {
+            if (!empty($item[$field])) {
+                return sanitize_title($item[$field]);
+            }
+        }
+        
+        // Try nested content
+        if (!empty($item['content']) && is_array($item['content'])) {
+            foreach ($slug_fields as $field) {
+                if (!empty($item['content'][$field])) {
+                    return sanitize_title($item['content'][$field]);
+                }
+            }
+        }
+        
+        return '';
+    }
+    
+    /**
+     * Extract content from item using various possible field names
+     */
+    private function extract_content_from_item($item) {
+        $content_fields = array('content', 'post_content', 'body', 'description', 'text');
+        
+        foreach ($content_fields as $field) {
+            if (!empty($item[$field])) {
+                return is_string($item[$field]) ? $item[$field] : wp_json_encode($item[$field]);
+            }
+        }
+        
+        // Try nested content
+        if (!empty($item['content']) && is_array($item['content'])) {
+            foreach ($content_fields as $field) {
+                if (!empty($item['content'][$field])) {
+                    return is_string($item['content'][$field]) ? $item['content'][$field] : wp_json_encode($item['content'][$field]);
+                }
+            }
+        }
+        
+        return '';
+    }
+    
+    /**
+     * Extract meta value from item
+     */
+    private function extract_meta_value_from_item($item, $meta_key) {
+        // Try direct field access
+        if (!empty($item[$meta_key])) {
+            return $item[$meta_key];
+        }
+        
+        // Try meta array
+        if (!empty($item['meta']) && is_array($item['meta']) && !empty($item['meta'][$meta_key])) {
+            return $item['meta'][$meta_key];
+        }
+        
+        // Try nested content
+        if (!empty($item['content']) && is_array($item['content']) && !empty($item['content'][$meta_key])) {
+            return $item['content'][$meta_key];
+        }
+        
+        return '';
+    }
+    
+    /**
+     * Get the last duplicate detection method used
+     */
+    private function get_last_duplicate_detection_method() {
+        return $this->last_duplicate_detection_method ?? 'none';
+    }
+    
+    /**
+     * Check if item has Yoast SEO data
+     */
+    private function has_yoast_seo_data($item) {
+        $yoast_indicators = array(
+            'yoast_seo_title', 'seo_title', 'meta_title',
+            'yoast_seo_description', 'seo_description', 'meta_description',
+            'yoast_focus_keyword', 'focus_keyword', 'keyword'
+        );
+        
+        foreach ($yoast_indicators as $indicator) {
+            if (!empty($item[$indicator])) {
+                return true;
+            }
+            
+            // Check nested content
+            if (!empty($item['content']) && is_array($item['content']) && !empty($item['content'][$indicator])) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if item has custom field data
+     */
+    private function has_custom_field_data($item) {
+        // Check for meta array
+        if (!empty($item['meta']) && is_array($item['meta'])) {
+            return true;
+        }
+        
+        // Check for custom_fields array
+        if (!empty($item['custom_fields']) && is_array($item['custom_fields'])) {
+            return true;
+        }
+        
+        // Check nested content for custom fields
+        if (!empty($item['content']) && is_array($item['content'])) {
+            if (!empty($item['content']['meta']) || !empty($item['content']['custom_fields'])) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if item has wrapper metadata
+     */
+    private function has_wrapper_metadata($item) {
+        $wrapper_fields = array('domain_name', 'user_id', 'email', 'domain_lang', 'type');
+        
+        foreach ($wrapper_fields as $field) {
+            if (!empty($item[$field])) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if item has media data
+     */
+    private function has_media_data($item) {
+        $media_indicators = array(
+            'featured_image', 'image', 'thumbnail', 'media', 'attachments'
+        );
+        
+        foreach ($media_indicators as $indicator) {
+            if (!empty($item[$indicator])) {
+                return true;
+            }
+            
+            // Check nested content
+            if (!empty($item['content']) && is_array($item['content']) && !empty($item['content'][$indicator])) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Check if item has taxonomy data
+     */
+    private function has_taxonomy_data($item) {
+        $taxonomy_indicators = array(
+            'categories', 'tags', 'category', 'tag', 'taxonomies'
+        );
+        
+        foreach ($taxonomy_indicators as $indicator) {
+            if (!empty($item[$indicator])) {
+                return true;
+            }
+            
+            // Check nested content
+            if (!empty($item['content']) && is_array($item['content']) && !empty($item['content'][$indicator])) {
+                return true;
+            }
+        }
+        
+        return false;
+    }
+    
+    /**
+     * Get content from nested structure
+     */
+    private function get_nested_content($item) {
+        return '';
+    }
+
+
+
+
+
+
+
+
+
+
+    /**
+     * Check Yoast SEO status via AJAX
+     */
+    public function check_yoast_status_ajax() {
+        check_ajax_referer('jpi_ajax_nonce', 'nonce');
+
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error(array('message' => __('You do not have sufficient permissions.', 'json-post-importer')));
+        }
+
+        $yoast_active = is_plugin_active('wordpress-seo/wp-seo.php') || 
+                       is_plugin_active('wordpress-seo-premium/wp-seo-premium.php');
+
+        wp_send_json_success(array(
+            'yoast_active' => $yoast_active,
+            'message' => $yoast_active ? 
+                __('Yoast SEO is active', 'json-post-importer') : 
+                __('Yoast SEO is not active', 'json-post-importer')
+        ));
+    }
+
+    /**
+     * Add import to history
+     */
+    private function add_to_import_history($result) {
         $history = get_option('jpi_import_history', array());
         
-        // Add new entry
-        $history[] = $history_entry;
+        $history[] = array(
+            'timestamp' => current_time('mysql'),
+            'total_items' => $result['total_items'],
+            'created' => $result['created'],
+            'updated' => $result['updated'],
+            'skipped' => $result['skipped'],
+            'errors' => count($result['errors']),
+            'status' => $result['status']
+        );
         
-        // Keep only last 100 imports
-        if (count($history) > 100) {
-            $history = array_slice($history, -100);
+        // Keep only last 50 imports
+        if (count($history) > 50) {
+            $history = array_slice($history, -50);
         }
         
-        // Update history
         update_option('jpi_import_history', $history);
     }
 
@@ -1072,24 +1881,11 @@ class JSON_Post_Importer_Admin {
 
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => __('You do not have sufficient permissions.', 'json-post-importer')));
+            return;
         }
 
-        $filename = isset($_POST['filename']) ? sanitize_text_field($_POST['filename']) : 'json-post-importer.log';
-        $lines = isset($_POST['lines']) ? intval($_POST['lines']) : 100;
-
-        $content = $this->logger->get_log_content($filename, $lines);
-        
-        if ($content === false) {
-            wp_send_json_error(array('message' => __('Log file not found.', 'json-post-importer')));
-        }
-
-        $files = $this->logger->get_log_files();
-
-        wp_send_json_success(array(
-            'content' => $content,
-            'files' => $files,
-            'debug_mode' => $this->logger->is_debug_mode()
-        ));
+        $logs = get_option('jpi_import_logs', array());
+        wp_send_json_success(array('logs' => $logs));
     }
 
     /**
@@ -1100,153 +1896,11 @@ class JSON_Post_Importer_Admin {
 
         if (!current_user_can('manage_options')) {
             wp_send_json_error(array('message' => __('You do not have sufficient permissions.', 'json-post-importer')));
-        }
-
-        $filename = isset($_POST['filename']) ? sanitize_text_field($_POST['filename']) : null;
-        
-        $success = $this->logger->clear_logs($filename);
-        
-        if ($success) {
-            $this->logger->info('Log files cleared via admin interface');
-            wp_send_json_success(array('message' => __('Logs cleared successfully.', 'json-post-importer')));
-        } else {
-            wp_send_json_error(array('message' => __('Failed to clear logs.', 'json-post-importer')));
-        }
-    }
-
-    /**
-     * Toggle debug mode via AJAX
-     */
-    public function toggle_debug_mode_ajax() {
-        check_ajax_referer('jpi_ajax_nonce', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => __('You do not have sufficient permissions.', 'json-post-importer')));
-        }
-
-        $enabled = isset($_POST['enabled']) ? (bool) $_POST['enabled'] : false;
-        
-        $this->logger->set_debug_mode($enabled);
-        
-        wp_send_json_success(array(
-            'message' => $enabled ? __('Debug mode enabled.', 'json-post-importer') : __('Debug mode disabled.', 'json-post-importer'),
-            'debug_mode' => $enabled
-        ));
-    }
-
-    /**
-     * Get log statistics via AJAX
-     */
-    public function get_log_stats_ajax() {
-        check_ajax_referer('jpi_ajax_nonce', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error(array('message' => __('You do not have sufficient permissions.', 'json-post-importer')));
-        }
-
-        $stats = $this->logger->get_log_stats();
-        
-        wp_send_json_success($stats);
-    }
-
-    /**
-     * Download log file via AJAX
-     */
-    public function download_log_ajax() {
-        check_ajax_referer('jpi_ajax_nonce', 'nonce');
-
-        if (!current_user_can('manage_options')) {
-            wp_die(__('You do not have sufficient permissions.', 'json-post-importer'));
-        }
-
-        $filename = isset($_GET['filename']) ? sanitize_text_field($_GET['filename']) : 'json-post-importer.log';
-        
-        $content = $this->logger->get_log_content($filename);
-        
-        if ($content === false) {
-            wp_die(__('Log file not found.', 'json-post-importer'));
-        }
-
-        // Set headers for download
-        header('Content-Type: text/plain');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        header('Content-Length: ' . strlen($content));
-        
-        echo $content;
-        exit;
-    }
-
-    /**
-     * AJAX handler to format JSON to WordPress standards
-     */
-    public function format_to_wordpress_ajax() {
-        // Verify nonce
-        if (!wp_verify_nonce($_POST['nonce'], 'jpi_nonce')) {
-            wp_send_json_error('Invalid nonce');
             return;
         }
 
-        // Check permissions
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Insufficient permissions');
-            return;
-        }
-
-        try {
-            $json_data = json_decode(stripslashes($_POST['json_data']), true);
-            $options = isset($_POST['options']) ? $_POST['options'] : [];
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                wp_send_json_error('Invalid JSON data');
-                return;
-            }
-
-            $formatted_data = $this->wordpress_formatter->format_to_wordpress_standard($json_data, $options);
-            
-            wp_send_json_success([
-                'formatted_data' => $formatted_data,
-                'message' => 'Data formatted to WordPress standards successfully'
-            ]);
-
-        } catch (Exception $e) {
-            wp_send_json_error('Error formatting data: ' . $e->getMessage());
-        }
-    }
-
-    /**
-     * AJAX handler to get WordPress mapping suggestions
-     */
-    public function get_wordpress_suggestions_ajax() {
-        // Verify nonce
-        if (!wp_verify_nonce($_POST['nonce'], 'jpi_nonce')) {
-            wp_send_json_error('Invalid nonce');
-            return;
-        }
-
-        // Check permissions
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Insufficient permissions');
-            return;
-        }
-
-        try {
-            $json_data = json_decode(stripslashes($_POST['json_data']), true);
-
-            if (json_last_error() !== JSON_ERROR_NONE) {
-                wp_send_json_error('Invalid JSON data');
-                return;
-            }
-
-            $suggestions = $this->wordpress_formatter->get_mapping_suggestions($json_data);
-            
-            wp_send_json_success([
-                'suggestions' => $suggestions,
-                'message' => 'WordPress mapping suggestions generated successfully'
-            ]);
-
-        } catch (Exception $e) {
-            wp_send_json_error('Error generating suggestions: ' . $e->getMessage());
-        }
+        delete_option('jpi_import_logs');
+        wp_send_json_success(array('message' => __('Logs cleared successfully.', 'json-post-importer')));
     }
 
 }

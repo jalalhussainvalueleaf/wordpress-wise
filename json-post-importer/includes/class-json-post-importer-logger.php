@@ -212,6 +212,93 @@ class JSON_Post_Importer_Logger {
             'results' => $results
         ));
     }
+    
+    /**
+     * Log enhanced import session end with detailed field type and processing statistics
+     *
+     * @since    1.0.0
+     * @param    string    $session_id    Import session ID
+     * @param    array     $results       Enhanced import results with field type tracking
+     */
+    public function log_import_end_enhanced($session_id, $results = array()) {
+        $this->info("Enhanced import session completed", array(
+            'session_id' => $session_id,
+            'created_posts' => $results['created_posts'] ?? 0,
+            'updated_posts' => $results['updated_posts'] ?? 0,
+            'skipped_posts' => $results['skipped_posts'] ?? 0,
+            'error_count' => $results['error_count'] ?? 0,
+            'total_items' => $results['total_items'] ?? 0,
+            'processed_items' => $results['processed_items'] ?? 0,
+            'field_type_summary' => $this->summarize_field_type_progress($results['field_type_progress'] ?? array()),
+            'duplicate_detection_summary' => $results['duplicate_detection_stats'] ?? array(),
+            'nested_extraction_summary' => $results['nested_extraction_stats'] ?? array()
+        ));
+        
+        // Log detailed field type processing summary
+        if (!empty($results['field_type_progress'])) {
+            $this->info("Field type processing summary", array(
+                'session_id' => $session_id,
+                'field_types' => $results['field_type_progress']
+            ));
+        }
+        
+        // Log duplicate detection effectiveness
+        if (!empty($results['duplicate_detection_stats'])) {
+            $total_duplicates = array_sum($results['duplicate_detection_stats']);
+            if ($total_duplicates > 0) {
+                $this->info("Duplicate detection summary", array(
+                    'session_id' => $session_id,
+                    'total_duplicates_found' => $total_duplicates,
+                    'detection_methods' => $results['duplicate_detection_stats']
+                ));
+            }
+        }
+        
+        // Log nested extraction effectiveness
+        if (!empty($results['nested_extraction_stats'])) {
+            $stats = $results['nested_extraction_stats'];
+            $total_attempts = $stats['successful_extractions'] + $stats['failed_extractions'];
+            
+            if ($total_attempts > 0) {
+                $success_rate = round(($stats['successful_extractions'] / $total_attempts) * 100, 2);
+                
+                $this->info("Nested data extraction summary", array(
+                    'session_id' => $session_id,
+                    'total_extraction_attempts' => $total_attempts,
+                    'successful_extractions' => $stats['successful_extractions'],
+                    'failed_extractions' => $stats['failed_extractions'],
+                    'success_rate_percentage' => $success_rate,
+                    'unique_paths_used' => count($stats['nested_paths_used'] ?? array())
+                ));
+            }
+        }
+    }
+    
+    /**
+     * Summarize field type progress for logging
+     *
+     * @param    array    $field_type_progress    Field type progress data
+     * @return   array    Summarized field type data
+     */
+    private function summarize_field_type_progress($field_type_progress) {
+        $summary = array();
+        
+        foreach ($field_type_progress as $field_type => $stats) {
+            $total_attempts = $stats['processed'] + $stats['errors'];
+            
+            if ($total_attempts > 0) {
+                $success_rate = round(($stats['processed'] / $total_attempts) * 100, 2);
+                
+                $summary[$field_type] = array(
+                    'processed' => $stats['processed'],
+                    'errors' => $stats['errors'],
+                    'success_rate_percentage' => $success_rate
+                );
+            }
+        }
+        
+        return $summary;
+    }
 
     /**
      * Log import batch processing
@@ -227,6 +314,51 @@ class JSON_Post_Importer_Logger {
             'batch_number' => $batch_num,
             'results' => $batch_results
         ));
+    }
+    
+    /**
+     * Log enhanced import batch processing with field type tracking
+     *
+     * @since    1.0.0
+     * @param    string    $session_id    Import session ID
+     * @param    int       $batch_num     Batch number
+     * @param    array     $batch_results Enhanced batch results with field type tracking
+     */
+    public function log_batch_processed_enhanced($session_id, $batch_num, $batch_results = array()) {
+        $this->debug("Enhanced batch processed", array(
+            'session_id' => $session_id,
+            'batch_number' => $batch_num,
+            'created' => $batch_results['created'] ?? 0,
+            'updated' => $batch_results['updated'] ?? 0,
+            'skipped' => $batch_results['skipped'] ?? 0,
+            'error_count' => count($batch_results['errors'] ?? array()),
+            'field_type_progress' => $batch_results['field_type_progress'] ?? array(),
+            'duplicate_detection' => $batch_results['duplicate_detection'] ?? array(),
+            'nested_extraction_stats' => $batch_results['nested_extraction_stats'] ?? array()
+        ));
+        
+        // Log field-specific processing details if debug mode is enabled
+        if ($this->debug_mode && !empty($batch_results['field_type_progress'])) {
+            foreach ($batch_results['field_type_progress'] as $field_type => $stats) {
+                if ($stats['processed'] > 0 || $stats['errors'] > 0) {
+                    $this->debug("Field type processing: {$field_type}", array(
+                        'session_id' => $session_id,
+                        'batch_number' => $batch_num,
+                        'processed' => $stats['processed'],
+                        'errors' => $stats['errors']
+                    ));
+                }
+            }
+        }
+        
+        // Log nested extraction details if available
+        if (!empty($batch_results['nested_extraction_stats']['nested_paths_used'])) {
+            $this->debug("Nested paths used in batch", array(
+                'session_id' => $session_id,
+                'batch_number' => $batch_num,
+                'paths' => $batch_results['nested_extraction_stats']['nested_paths_used']
+            ));
+        }
     }
 
     /**
