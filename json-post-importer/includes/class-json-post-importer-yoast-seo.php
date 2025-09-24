@@ -472,7 +472,8 @@ class JSON_Post_Importer_Yoast_SEO {
         $this->logger->debug('Processing Yoast SEO fields', [
             'post_id' => $post_id,
             'field_count' => count($yoast_data),
-            'yoast_active' => $this->yoast_active
+            'yoast_active' => $this->yoast_active,
+            'fields' => array_keys($yoast_data)
         ]);
 
         $results = [
@@ -492,24 +493,27 @@ class JSON_Post_Importer_Yoast_SEO {
         // Process each field
         foreach ($validation['processed_data'] as $field => $value) {
             try {
-                if ($this->yoast_active) {
-                    // Use Yoast SEO if active
-                    update_post_meta($post_id, $field, $value);
-                } else {
-                    // Store as custom meta with fallback prefix
+                // Always store the original Yoast field, regardless of plugin status
+                // This ensures compatibility when Yoast SEO is activated later
+                $meta_result = update_post_meta($post_id, $field, $value);
+                
+                if (!$this->yoast_active) {
+                    // Also store as custom meta with fallback prefix for easy identification
                     $fallback_key = 'jpi_yoast_' . str_replace('_yoast_wpseo_', '', $field);
                     update_post_meta($post_id, $fallback_key, $value);
-                    
-                    // Also store original key for future migration
-                    update_post_meta($post_id, $field, $value);
                 }
+                
+                // For certain fields, we need to ensure Yoast SEO recognizes them
+                // by setting additional meta fields that Yoast uses internally
+                $this->set_yoast_internal_meta($post_id, $field, $value);
                 
                 $results['processed']++;
                 
                 $this->logger->debug("Processed Yoast field", [
                     'post_id' => $post_id,
                     'field' => $field,
-                    'value_length' => strlen($value)
+                    'value_length' => strlen($value),
+                    'meta_result' => $meta_result
                 ]);
                 
             } catch (Exception $e) {
@@ -529,6 +533,15 @@ class JSON_Post_Importer_Yoast_SEO {
             foreach ($validation['warnings'] as $warning) {
                 $this->logger->warning($warning, ['post_id' => $post_id]);
             }
+        }
+
+        // Force Yoast SEO to refresh its data for this post
+        if ($results['processed'] > 0) {
+            $this->refresh_yoast_data($post_id);
+            
+            // Verify the fields were saved correctly
+            $verification_results = $this->verify_saved_fields($post_id, $validation['processed_data']);
+            $results['verification'] = $verification_results;
         }
 
         return $results;
@@ -719,6 +732,153 @@ class JSON_Post_Importer_Yoast_SEO {
             'migrated' => $migrated,
             'message' => "Migrated {$migrated} Yoast SEO fields"
         ];
+    }
+
+    /**
+     * Verify that Yoast fields were saved correctly
+     *
+     * @param int $post_id Post ID
+     * @param array $expected_data Expected field values
+     * @return array Verification results
+     */
+    private function verify_saved_fields($post_id, $expected_data) {
+        $verification = [
+            'verified' => 0,
+            'failed' => 0,
+            'details' => []
+        ];
+
+        foreach ($expected_data as $field => $expected_value) {
+            $saved_value = get_post_meta($post_id, $field, true);
+            $matches = ($saved_value === $expected_value);
+            
+            $verification['details'][$field] = [
+                'expected' => $expected_value,
+                'saved' => $saved_value,
+                'matches' => $matches
+            ];
+            
+            if ($matches) {
+                $verification['verified']++;
+            } else {
+                $verification['failed']++;
+                $this->logger->warning("Yoast field verification failed", [
+                    'post_id' => $post_id,
+                    'field' => $field,
+                    'expected' => $expected_value,
+                    'saved' => $saved_value
+                ]);
+            }
+        }
+
+        $this->logger->debug("Yoast field verification completed", [
+            'post_id' => $post_id,
+            'verified' => $verification['verified'],
+            'failed' => $verification['failed']
+        ]);
+
+        return $verification;
+    }
+
+    /**
+     * Force Yoast SEO to refresh its data for a post
+     *
+     * @param int $post_id Post ID
+     */
+    private function refresh_yoast_data($post_id) {
+        if (!$this->yoast_active) {
+            return;
+        }
+
+        try {
+            // Clear Yoast SEO caches
+            delete_post_meta($post_id, '_yoast_wpseo_content_score');
+            delete_post_meta($post_id, '_yoast_wpseo_keyword_analysis');
+            delete_post_meta($post_id, '_yoast_wpseo_readability_score');
+            
+            // Trigger Yoast SEO hooks if available
+            if (function_exists('YoastSEO')) {
+                // Try to trigger Yoast's post save hooks to recalculate scores
+                do_action('save_post', $post_id);
+                do_action('wp_insert_post', $post_id);
+            }
+            
+            $this->logger->debug("Refreshed Yoast SEO data for post", [
+                'post_id' => $post_id
+            ]);
+            
+        } catch (Exception $e) {
+            $this->logger->warning("Could not refresh Yoast SEO data", [
+                'post_id' => $post_id,
+                'error' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * Set additional internal meta fields that Yoast SEO might need
+     *
+     * @param int $post_id Post ID
+     * @param string $field Yoast field name
+     * @param mixed $value Field value
+     */
+    private function set_yoast_internal_meta($post_id, $field, $value) {
+        // Handle specific fields that might need additional processing
+        switch ($field) {
+            case '_yoast_wpseo_focuskw':
+                // Yoast SEO sometimes uses additional fields for keyword analysis
+                if (!empty($value)) {
+                    // Set keyword analysis score (default to needs improvement)
+                    update_post_meta($post_id, '_yoast_wpseo_focuskw_text_input', $value);
+                    update_post_meta($post_id, '_yoast_wpseo_linkdex', '41'); // Default score
+                }
+                break;
+                
+            case '_yoast_wpseo_title':
+                // Ensure title template is not overriding
+                if (!empty($value)) {
+                    update_post_meta($post_id, '_yoast_wpseo_title_template', '');
+                }
+                break;
+                
+            case '_yoast_wpseo_metadesc':
+                // Ensure meta description template is not overriding
+                if (!empty($value)) {
+                    update_post_meta($post_id, '_yoast_wpseo_metadesc_template', '');
+                }
+                break;
+                
+            case '_yoast_wpseo_meta-robots-noindex':
+                // Ensure the value is properly formatted for Yoast
+                if ($value === '1' || $value === 1) {
+                    update_post_meta($post_id, '_yoast_wpseo_meta-robots-noindex', '1');
+                } elseif ($value === '2' || $value === 2) {
+                    update_post_meta($post_id, '_yoast_wpseo_meta-robots-noindex', '2');
+                } else {
+                    update_post_meta($post_id, '_yoast_wpseo_meta-robots-noindex', '0');
+                }
+                break;
+                
+            case '_yoast_wpseo_meta-robots-nofollow':
+                // Ensure the value is properly formatted
+                update_post_meta($post_id, '_yoast_wpseo_meta-robots-nofollow', $value === '1' || $value === 1 ? '1' : '0');
+                break;
+        }
+        
+        // If this is the first time setting Yoast data for this post,
+        // ensure Yoast SEO recognizes it by setting a flag
+        $yoast_data_set = get_post_meta($post_id, '_jpi_yoast_data_imported', true);
+        if (!$yoast_data_set) {
+            $timestamp = function_exists('current_time') ? current_time('mysql') : date('Y-m-d H:i:s');
+            update_post_meta($post_id, '_jpi_yoast_data_imported', $timestamp);
+            
+            // Trigger Yoast SEO to recalculate scores if plugin is active
+            if ($this->yoast_active && function_exists('YoastSEO')) {
+                // Clear any cached analysis
+                delete_post_meta($post_id, '_yoast_wpseo_content_score');
+                delete_post_meta($post_id, '_yoast_wpseo_keyword_analysis');
+            }
+        }
     }
 
     /**
